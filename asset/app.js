@@ -261,6 +261,17 @@
       </section>
 
       <section class="block">
+        <h2>How it works</h2>
+        <div class="steps">
+          <div class="card step"><div class="num">1</div><h3>Register in 30 seconds</h3><p>Fill in your name, email, WhatsApp number and college in the form above. It's free.</p></div>
+          <div class="card step"><div class="num">2</div><h3>Get your invite link</h3><p>You'll see your personal link straight away. Share it with friends on WhatsApp in one tap.</p></div>
+          <div class="card step"><div class="num">3</div><h3>Unlock rewards</h3><p>Every friend who joins counts. Invite 1, 3 or 5 friends to unlock the prompt pack, priority Q&amp;A or a 1:1 review.</p></div>
+          <div class="card step"><div class="num">4</div><h3>Join live and build</h3><p>The joining link arrives on WhatsApp and email. On ${esc(fmtDate)}, open your laptop and build your AI project with us.</p></div>
+        </div>
+        <p class="note" style="margin-top:12px">Lost your invite link? <a href="#/find">Find it with your email or number →</a></p>
+      </section>
+
+      <section class="block">
         <h2>What you walk away with</h2>
         <div class="grid3">
           <div class="card feature"><div class="num">1</div><h3>A deployed AI app</h3><p>A working AI Resume Reviewer with a public URL you can show a recruiter.</p></div>
