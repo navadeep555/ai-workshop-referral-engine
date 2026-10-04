@@ -65,7 +65,8 @@
   const normCollege = (s) => String(s || "").trim().replace(/\s+/g, " ");
   const normPhone = (s) => String(s || "").replace(/\D/g, "").replace(/^(91|0)(?=\d{10}$)/, "");
   const { dayKey } = window.Analytics;
-  const baseUrl = () => location.href.split(/[?#]/)[0];
+  // Invite links always use the short address, even when the page was opened via /asset/
+  const baseUrl = () => location.href.split(/[?#]/)[0].replace(/\/asset\/(index\.html)?$/, "/");
   const inviteLink = (code) => `${baseUrl()}?ref=${encodeURIComponent(code)}`;
 
   const when = new Date(C.WORKSHOP_DATE);
