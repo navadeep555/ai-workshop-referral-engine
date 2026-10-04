@@ -10,7 +10,8 @@ let colPromise = null;
 function registrations() {
   if (!colPromise) {
     colPromise = (async () => {
-      const client = await new MongoClient(process.env.MONGODB_URI, { maxPoolSize: 5 }).connect();
+      // Fail fast (before Vercel's function timeout) so the user sees a useful message
+      const client = await new MongoClient(process.env.MONGODB_URI.trim(), { maxPoolSize: 5, serverSelectionTimeoutMS: 7000 }).connect();
       const col = client.db(process.env.MONGODB_DB || "ai_workshop").collection("registrations");
       await col.createIndexes([
         { key: { email: 1 }, name: "email_unique", unique: true },
@@ -108,6 +109,26 @@ const actions = {
   },
 };
 
+// Explain connection problems without ever echoing the connection string
+function friendlyDbError(err) {
+  const name = (err && err.name) || "";
+  const text = String((err && err.message) || "");
+  if (/querySrv|ENOTFOUND|EBADNAME/.test(text)) {
+    return "Can't find the database: the cluster address in MONGODB_URI is wrong. Copy it again from Atlas → Connect → Drivers.";
+  }
+  if (!/Mongo/.test(name)) return text || "Something went wrong";
+  if (name === "MongoParseError" || /URI|scheme|hostname|unescaped/i.test(text) && /Parse|API/.test(name)) {
+    return "Database setting error: MONGODB_URI is not formatted correctly. Remove any < > around the password and write # as %23, @ as %40.";
+  }
+  if (/auth/i.test(text) || (err.code === 18 || err.code === 8000)) {
+    return "Database login failed: the username or password in MONGODB_URI is wrong (check Atlas → Database Access).";
+  }
+  if (name === "MongoServerSelectionError" || /ENOTFOUND|ETIMEDOUT|ECONNREFUSED|timed out|whitelist|IP/i.test(text)) {
+    return "Can't reach the database: in Atlas → Network Access, allow 0.0.0.0/0 (access from anywhere), then try again.";
+  }
+  return "Database error. Please try again.";
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") return res.status(200).json({ ok: true, service: "referral-engine" });
@@ -122,7 +143,6 @@ module.exports = async function handler(req, res) {
     res.status(200).json(await fn(body));
   } catch (err) {
     console.error(err);
-    const msg = err && err.name && /Mongo/.test(err.name) ? "Database error. Please try again." : err.message;
-    res.status(200).json({ ok: false, error: msg || "Something went wrong" });
+    res.status(200).json({ ok: false, error: friendlyDbError(err) });
   }
 };
