@@ -178,11 +178,16 @@
       const visible = (n) => n.day - 1 + n.t * 0.95 <= elapsedDays;
       // college labels for the biggest clusters
       const top = sizes.map((s, i) => [s, i]).sort((a, b) => b[0] - a[0]).slice(0, 6).map((x) => x[1]);
-      ctx.font = "600 11px Inter, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#5b6478";
+      ctx.font = "700 12px 'Plus Jakarta Sans', sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#475569";
       centers.forEach((c, i) => {
         const dx = c.x - w / 2, dy = c.y - h / 2, len = Math.hypot(dx, dy) || 1;
         const off = Math.sqrt(sizes[i]) * 3.4 + 14;
-        if (top.includes(i) && elapsedDays > 0.5) ctx.fillText(COLLEGES[i], c.x + (dx / len) * off, c.y + (dy / len) * off + 4);
+        if (!top.includes(i) || elapsedDays <= 0.5) return;
+        // keep labels fully inside the canvas
+        const half = ctx.measureText(COLLEGES[i]).width / 2 + 4;
+        const lx = Math.min(w - half, Math.max(half, c.x + (dx / len) * off));
+        const ly = Math.min(h - 6, Math.max(14, c.y + (dy / len) * off + 4));
+        ctx.fillText(COLLEGES[i], lx, ly);
       });
       // invite edges
       ctx.lineWidth = 0.7; ctx.strokeStyle = "rgba(22,163,74,.28)";
@@ -213,8 +218,8 @@
       document.getElementById("sim-chart").innerHTML = `
         <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Cumulative registrations against plan">
           <line x1="${pad}" x2="${W - 10}" y1="${y(500)}" y2="${y(500)}" stroke="#e4e7ef" stroke-dasharray="3 3"/>
-          <text x="${W - 12}" y="${y(500) - 5}" text-anchor="end" font-size="11" fill="#5b6478">goal 500</text>
-          ${[1, 2, 3, 4, 5, 6, 7].map((d) => `<text x="${x(d)}" y="${H - 10}" text-anchor="middle" font-size="11" fill="#5b6478">D${d}</text>`).join("")}
+          <text x="${W - 12}" y="${y(500) - 5}" text-anchor="end" font-size="14" font-weight="600" fill="#64748b">goal 500</text>
+          ${[1, 2, 3, 4, 5, 6, 7].map((d) => `<text x="${x(d)}" y="${H - 10}" text-anchor="middle" font-size="14" fill="#64748b">D${d}</text>`).join("")}
           <polyline points="${line(plan)}" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4"/>
           <polyline points="${line(actual)}" fill="none" stroke="#4f46e5" stroke-width="3" stroke-linejoin="round"/>
           ${actual.slice(1).map(([d, v]) => `<circle cx="${x(d)}" cy="${y(v)}" r="3.5" fill="#4f46e5"/>`).join("")}
