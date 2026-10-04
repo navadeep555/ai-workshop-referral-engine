@@ -42,3 +42,30 @@ The two A/B tests split **different groups** (visitors vs registrants), run on D
 - **Stack:** Vercel serverless and MongoDB Atlas, free to run. Unique indexes block duplicate sign-ups.
 
 **Every morning it answers:** *Are we on plan, and which channel or college gets our effort today?*
+
+## 5. Funnel and KPIs: what "on track" means
+| Stage | Target | How it's measured |
+|---|---|---|
+| Reach (WhatsApp groups, posts) | 5,000+ students | Ambassadors × groups × members |
+| Visit the page | ~1,500 (30% of reach) | Home-page visitors on the dashboard |
+| Register | **500** (≈ 33% of visits) | Live dashboard, against daily targets |
+| Share their invite link | 30%+ of registrants | Squad Challenge share rate |
+| Bring a friend | 0.45 friends per seeded student | Viral ratio on the dashboard |
+| Show up live | **45%+ (≈ 225 builders)** | Attendance on the day, after 3 reminders |
+
+**My north-star number isn't 500 sign-ups. It's ~225 students who actually build and deploy the project,** because that's what turns into testimonials, LinkedIn posts and sign-ups for the next workshop.
+
+## 6. Risks and how I handle them
+| Risk | What I do |
+|---|---|
+| Ambassadors sign up but don't post | Rewards paid **only on results**, a ready-made content kit, and on Day 4 I replace inactive colleges with the best performers' contacts |
+| Behind plan by Day 5 | The ₹400 boost goes to the best-converting post, plus a social-proof message ("300+ students from 18 colleges") |
+| Registrations but low attendance | Reminders 1 day, 1 hour and 10 minutes before, squads (friends attend together) and the Passport prep checklist |
+| Duplicate or fake sign-ups | Phone and email validation; the database rejects repeats |
+| Over-promising | Only the Resume Reviewer is promised for Sunday. Other projects are clearly votes for the next workshop |
+
+## 7. Try it yourself
+- **Student view:** home page with project cards → [College Help Chatbot page](https://ai-workshop-referral-engine.vercel.app/#/project/chatbot) → [2-step sign-up](https://ai-workshop-referral-engine.vercel.app/#/register)
+- **Campus Identity, version B:** [Amrita AI Project Sprint](https://ai-workshop-referral-engine.vercel.app/?college=amrita-coimbatore&v_campus=B#/)
+- **Plan as a live model:** [Campaign Simulator](https://ai-workshop-referral-engine.vercel.app/#/simulator) (press Run, then "No referral loop")
+- **Leaderboard:** [College Challenge](https://ai-workshop-referral-engine.vercel.app/#/leaderboard) · **Code:** [github.com/navadeep555/ai-workshop-referral-engine](https://github.com/navadeep555/ai-workshop-referral-engine)
