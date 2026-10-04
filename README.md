@@ -3,7 +3,7 @@ A growth plan and a working referral app to get **500 final-year engineering stu
 
 - `GROWTH_PLAN.md`: the 2-page plan (target students, 3 channels, how the 500 adds up, budget, day-by-day targets)
 - `SURVEY.md`: a student survey that tests the plan's assumptions with real data
-- `asset/`: the working asset (static site, plus a serverless API in `asset/api/` that stores registrations in an Upstash Redis database)
+- `asset/`: the working asset (static site, plus a serverless API in `asset/api/` that stores registrations in MongoDB)
 
 ## What the app does
 - **Registration page:** records where each sign-up came from (ambassador link, WhatsApp, a friend's invite and so on)
@@ -13,10 +13,13 @@ A growth plan and a working referral app to get **500 final-year engineering stu
 - **Campaign Simulator:** runs the 7-day plan as a live model (every dot is one student, lines show who invited whom). Sliders change each assumption, presets compare "My plan", "Pessimistic" and "No referral loop", and it shows which change would add the most registrations.
 
 ## Run locally
-```
-node dev-server.js
-```
-Open http://localhost:5173. Locally it uses a temporary in-memory database (admin key `local-admin`) that resets when the server stops.
+1. `cd asset && npm install`
+2. Create `.env.local` in the repo root (it's git-ignored):
+   ```
+   MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/
+   ADMIN_KEY=choose-a-secret
+   ```
+3. `node dev-server.js`, then open http://localhost:5173
 
 - Registration page: `/`
 - A student's invite page: `/#/me/<CODE>`
@@ -27,7 +30,9 @@ Open http://localhost:5173. Locally it uses a temporary in-memory database (admi
 
 ## Deploy on Vercel (free)
 1. **Import:** Vercel → Add New → Project → import this repo. Set **Framework Preset** to `Other` and **Root Directory** to `asset`, then deploy.
-2. **Database:** in the Vercel project, open **Storage → Create Database → Upstash for Redis** (free plan) and **connect** it to the project. Vercel adds the connection details (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) automatically.
-3. **Admin password:** go to **Settings → Environment Variables** and add `ADMIN_KEY` = a secret of your choice. This password opens `/#/admin`.
-4. **Redeploy** (Deployments → ⋯ → Redeploy) so the new settings take effect.
-5. **Test:** register once, open your invite link in an incognito window, register a second user and confirm the first user's invite count goes up.
+2. **Database:** create a free **MongoDB Atlas** cluster (M0) and connect it in one of two ways:
+   - Vercel **Integrations → MongoDB Atlas → Add**, which adds `MONGODB_URI` to the project automatically, **or**
+   - in Atlas, click **Connect → Drivers**, copy the connection string, and add it in Vercel → **Settings → Environment Variables** as `MONGODB_URI`. In Atlas → **Network Access**, allow `0.0.0.0/0`, because Vercel's servers don't have fixed IP addresses.
+3. **Admin password:** add `ADMIN_KEY` = a secret of your choice in the same Environment Variables page. It opens `/#/admin`.
+4. **Redeploy** (Deployments → ⋯ → Redeploy).
+5. **Test:** register once, open your invite link in an incognito window, register a second user and confirm the first user's invite count goes up. The data appears in Atlas under the `ai_workshop` database, in the `registrations` collection.

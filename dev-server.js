@@ -1,37 +1,25 @@
 /* Local dev server: serves asset/ and runs api/index.js like Vercel does.
- * Without real Upstash credentials it starts an in-memory stand-in for Redis,
- * so the whole flow can be tested offline. Data resets when the server stops.
- *   node dev-server.js   →  http://localhost:5173
+ * Put your MongoDB connection string and admin key in .env.local (never committed):
+ *   MONGODB_URI=mongodb+srv://...
+ *   ADMIN_KEY=your-secret
+ * Then: node dev-server.js  →  http://localhost:5173
  */
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
+// Minimal .env.local loader
+const envFile = path.join(__dirname, ".env.local");
+if (fs.existsSync(envFile)) {
+  fs.readFileSync(envFile, "utf8").split(/\r?\n/).forEach((line) => {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+  });
+}
+
 const PORT = Number(process.env.PORT) || 5173;
 const ROOT = path.join(__dirname, "asset");
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png" };
-
-// --- in-memory Redis stand-in (only the commands the API uses) ---
-const kv = new Map();
-const lists = new Map();
-const MOCK = !(process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL);
-if (MOCK) {
-  process.env.KV_REST_API_URL = `http://localhost:${PORT}/__redis`;
-  process.env.KV_REST_API_TOKEN = "local";
-  process.env.ADMIN_KEY = process.env.ADMIN_KEY || "local-admin";
-}
-function runCmd([cmd, key, ...args]) {
-  switch (cmd.toUpperCase()) {
-    case "GET": return kv.has(key) ? kv.get(key) : null;
-    case "SET": if (args.includes("NX") && kv.has(key)) return null; kv.set(key, args[0]); return "OK";
-    case "EXISTS": return kv.has(key) ? 1 : 0;
-    case "DEL": return kv.delete(key) ? 1 : 0;
-    case "RPUSH": { const l = lists.get(key) || []; l.push(...args); lists.set(key, l); return l.length; }
-    case "LRANGE": { const l = lists.get(key) || []; const end = +args[1] === -1 ? l.length : +args[1] + 1; return l.slice(+args[0], end); }
-    default: throw new Error("Unsupported command " + cmd);
-  }
-}
-
 const handler = require("./asset/api/index.js");
 
 function readBody(req) {
@@ -40,12 +28,6 @@ function readBody(req) {
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
-
-  if (MOCK && url.pathname === "/__redis/pipeline") {
-    const cmds = JSON.parse(await readBody(req));
-    res.setHeader("Content-Type", "application/json");
-    return res.end(JSON.stringify(cmds.map((c) => { try { return { result: runCmd(c) }; } catch (e) { return { error: e.message }; } })));
-  }
 
   if (url.pathname === "/api" || url.pathname === "/api/") {
     const raw = await readBody(req);
@@ -56,7 +38,7 @@ http.createServer(async (req, res) => {
   }
 
   const file = path.join(ROOT, path.normalize(url.pathname === "/" ? "/index.html" : url.pathname));
-  if (!file.startsWith(ROOT)) { res.statusCode = 403; return res.end(); }
+  if (!file.startsWith(ROOT) || file.startsWith(path.join(ROOT, "api")) || file.includes("node_modules")) { res.statusCode = 404; return res.end("Not found"); }
   fs.readFile(file, (err, data) => {
     if (err) { res.statusCode = 404; return res.end("Not found"); }
     res.setHeader("Content-Type", TYPES[path.extname(file)] || "application/octet-stream");
@@ -64,5 +46,5 @@ http.createServer(async (req, res) => {
     res.end(data);
   });
 }).listen(PORT, () => {
-  console.log(`http://localhost:${PORT}` + (MOCK ? "  (in-memory database, admin key: local-admin)" : "  (Upstash database)"));
+  console.log(`http://localhost:${PORT}` + (process.env.MONGODB_URI ? "  (MongoDB connected)" : "  (no MONGODB_URI set: registrations will show a 'database not connected' message)"));
 });

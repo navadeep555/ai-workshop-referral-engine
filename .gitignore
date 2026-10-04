@@ -3,3 +3,6 @@
 .DS_Store
 Thumbs.db
 SUBMISSION_GUIDE.md
+node_modules/
+.env
+.env.local

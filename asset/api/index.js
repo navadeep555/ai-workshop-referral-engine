@@ -1,37 +1,37 @@
-/* Vercel serverless API backed by Upstash Redis (Vercel Storage → Upstash for Redis).
- * Data layout:
- *   regs              list of registration rows (JSON)
- *   code:<CODE>       marks a referral code as taken
- *   email:<email>     → code   (one registration per email)
- *   phone:<phone>     → code   (one registration per phone)
- * Env: KV_REST_API_URL + KV_REST_API_TOKEN (or UPSTASH_REDIS_REST_URL/TOKEN), ADMIN_KEY.
+/* Vercel serverless API backed by MongoDB (Atlas).
+ * Collection "registrations": one document per student, with unique indexes on
+ * email, phone and code so duplicates are rejected by the database itself.
+ * Env: MONGODB_URI (added by the Vercel ↔ MongoDB Atlas integration), ADMIN_KEY, optional MONGODB_DB.
  */
+const { MongoClient } = require("mongodb");
 const A = require("../analytics.js");
 
-const URL_ = () => process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-const TOKEN = () => process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-
-async function redis(...cmds) {
-  const res = await fetch(`${URL_()}/pipeline`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${TOKEN()}`, "Content-Type": "application/json" },
-    body: JSON.stringify(cmds),
-  });
-  if (!res.ok) throw new Error(`Database error (${res.status})`);
-  const out = await res.json();
-  return out.map((r) => {
-    if (r.error) throw new Error(r.error);
-    return r.result;
-  });
+let colPromise = null;
+function registrations() {
+  if (!colPromise) {
+    colPromise = (async () => {
+      const client = await new MongoClient(process.env.MONGODB_URI, { maxPoolSize: 5 }).connect();
+      const col = client.db(process.env.MONGODB_DB || "ai_workshop").collection("registrations");
+      await col.createIndexes([
+        { key: { email: 1 }, name: "email_unique", unique: true },
+        { key: { phone: 1 }, name: "phone_unique", unique: true },
+        { key: { code: 1 }, name: "code_unique", unique: true },
+        { key: { referredBy: 1 }, name: "referredBy" },
+      ]);
+      return col;
+    })().catch((err) => { colPromise = null; throw err; });
+  }
+  return colPromise;
 }
 
 async function allRows() {
-  const [list] = await redis(["LRANGE", "regs", "0", "-1"]);
-  return (list || []).map((s) => JSON.parse(s));
+  const col = await registrations();
+  return col.find({}, { projection: { _id: 0 } }).sort({ ts: 1 }).toArray();
 }
 
 const clean = (s, max = 120) => String(s || "").trim().replace(/\s+/g, " ").slice(0, max);
 const normPhone = (s) => String(s || "").replace(/\D/g, "").replace(/^(91|0)(?=\d{10}$)/, "");
+const isDup = (err) => err && err.code === 11000;
 
 function checkKey(key) {
   if (!process.env.ADMIN_KEY || key !== process.env.ADMIN_KEY) throw new Error("Wrong admin key");
@@ -54,41 +54,38 @@ const actions = {
     if (row.college.length < 3) throw new Error("Please enter your college.");
     if (!row.branch) throw new Error("Please select your branch.");
 
-    const [byEmail, byPhone] = await redis(["GET", `email:${row.email}`], ["GET", `phone:${row.phone}`]);
-    if (byEmail || byPhone) return { ok: true, existing: true, code: byEmail || byPhone };
+    const col = await registrations();
+    const findExisting = () => col.findOne({ $or: [{ email: row.email }, { phone: row.phone }] }, { projection: { code: 1 } });
 
-    // Claim a unique referral code
-    const stem = (row.name.replace(/[^a-z]/gi, "").toUpperCase() + "XXXX").slice(0, 4);
-    let code = "";
-    for (let i = 0; i < 20 && !code; i++) {
-      const c = stem + Math.floor(100 + Math.random() * 900);
-      const [ok] = await redis(["SET", `code:${c}`, "1", "NX"]);
-      if (ok === "OK") code = c;
-    }
-    if (!code) throw new Error("Please try again.");
-
-    // Claim email + phone atomically so double-clicks don't create duplicates
-    const [e, p] = await redis(["SET", `email:${row.email}`, code, "NX"], ["SET", `phone:${row.phone}`, code, "NX"]);
-    if (e !== "OK" || p !== "OK") {
-      const [existing] = await redis(["GET", e !== "OK" ? `email:${row.email}` : `phone:${row.phone}`]);
-      if (e === "OK") await redis(["DEL", `email:${row.email}`]);
-      if (p === "OK") await redis(["DEL", `phone:${row.phone}`]);
-      await redis(["DEL", `code:${code}`]);
-      return { ok: true, existing: true, code: existing };
-    }
+    const existing = await findExisting();
+    if (existing) return { ok: true, existing: true, code: existing.code };
 
     const ref = clean(d.ref, 20).toUpperCase();
-    const [refExists] = ref ? await redis(["EXISTS", `code:${ref}`]) : [0];
-    Object.assign(row, { ts: Date.now(), code, referredBy: refExists ? ref : "" });
-    await redis(["RPUSH", "regs", JSON.stringify(row)]);
-    return { ok: true, code };
+    row.referredBy = ref && (await col.countDocuments({ code: ref }, { limit: 1 })) ? ref : "";
+
+    const stem = (row.name.replace(/[^a-z]/gi, "").toUpperCase() + "XXXX").slice(0, 4);
+    for (let i = 0; i < 20; i++) {
+      const code = stem + Math.floor(100 + Math.random() * 900);
+      try {
+        await col.insertOne({ ...row, code, ts: Date.now() });
+        return { ok: true, code };
+      } catch (err) {
+        if (!isDup(err)) throw err;
+        if (err.keyPattern && err.keyPattern.code) continue; // code taken, try another
+        const again = await findExisting(); // same email/phone registered at the same moment
+        if (again) return { ok: true, existing: true, code: again.code };
+        throw err;
+      }
+    }
+    throw new Error("Please try again.");
   },
 
   async find(d) {
     let q = clean(d.q).toLowerCase();
     if (/^[\d\s+-]+$/.test(q)) q = normPhone(q);
-    const [code] = await redis(["GET", q.includes("@") ? `email:${q}` : `phone:${q}`]);
-    return code ? { ok: true, code } : { ok: false };
+    const col = await registrations();
+    const r = await col.findOne(q.includes("@") ? { email: q } : { phone: q }, { projection: { code: 1 } });
+    return r ? { ok: true, code: r.code } : { ok: false };
   },
 
   async me(d) {
@@ -114,8 +111,8 @@ const actions = {
 module.exports = async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") return res.status(200).json({ ok: true, service: "referral-engine" });
-  if (!URL_() || !TOKEN()) {
-    return res.status(503).json({ ok: false, error: "Database not connected yet. Connect Upstash Redis in Vercel → Storage." });
+  if (!process.env.MONGODB_URI) {
+    return res.status(503).json({ ok: false, error: "Database not connected yet. Add MONGODB_URI in Vercel → Settings → Environment Variables." });
   }
   let body = req.body;
   try { if (typeof body === "string") body = JSON.parse(body || "{}"); } catch { body = null; }
@@ -124,6 +121,8 @@ module.exports = async function handler(req, res) {
   try {
     res.status(200).json(await fn(body));
   } catch (err) {
-    res.status(200).json({ ok: false, error: err.message || "Something went wrong" });
+    console.error(err);
+    const msg = err && err.name && /Mongo/.test(err.name) ? "Database error. Please try again." : err.message;
+    res.status(200).json({ ok: false, error: msg || "Something went wrong" });
   }
 };
