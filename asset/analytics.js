@@ -5,9 +5,10 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
-  const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "Friend";
+  const cap = (w) => (w ? w[0].toUpperCase() + w.slice(1) : w);
+  const firstName = (n) => cap(String(n || "").trim().split(/\s+/)[0]) || "Friend";
   const shortName = (n) => {
-    const p = String(n || "").trim().split(/\s+/);
+    const p = String(n || "").trim().split(/\s+/).map(cap);
     return p.length > 1 ? `${p[0]} ${p[p.length - 1][0]}.` : p[0];
   };
   const dayKey = (ts) => new Date(ts).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
