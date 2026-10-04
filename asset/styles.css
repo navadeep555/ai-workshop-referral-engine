@@ -479,3 +479,4 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
   .hero-ctas .btn { width: 100%; }
   .stepper li { font-size: 13px; }
 }
+.own-link-note { display: flex; align-items: flex-start; gap: 8px; margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); color: #e4e6ff; font-size: 14px; font-weight: 600; max-width: 520px; }

@@ -226,6 +226,7 @@
               <b>AI Resume Reviewer</b>, and leave with a public link and a GitHub repo for your resume.</p>
             <div class="hero-ctas">${ctas}</div>
             ${code ? `<p class="registered-note">${icon("check")} You're registered for ${esc(fmtDay)}, ${esc(fmtTime)} IST.</p>` : ""}
+            ${code && attribution().ref === code ? `<p class="own-link-note">${icon("link")} This is your own invite link. Friends who open it on their phone will see the sign-up page.</p>` : ""}
             <ul class="facts">
               <li>${icon("calendar")} ${esc(fmtDay)}, ${esc(fmtTime)} IST</li>
               <li>${icon("clock")} 60 minutes</li>
