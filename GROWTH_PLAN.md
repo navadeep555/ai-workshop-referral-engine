@@ -63,6 +63,7 @@ A working web app that runs channels 1 and 2:
 - **Personal invite page:** a unique link, a one-tap WhatsApp or LinkedIn share with the message already written, and reward progress.
 - **College Challenge leaderboard** (top colleges and top inviters).
 - **Organiser dashboard:** registrations against the daily plan, a split by channel, the viral ratio, and how many registrations per day are still needed. It also exports a CSV.
-- **Backend:** Google Sheets plus Apps Script. It's free, organisers can open the sheet directly and it holds up under concurrent writes.
+- **Backend:** a Vercel serverless API with an Upstash Redis database. It's free and needs no server to manage, and duplicate sign-ups (same email or phone) are blocked even when two arrive at the same moment.
+- **Campaign Simulator:** the 7-day plan as a live model with adjustable assumptions. It shows the plan reaching 500 on Day 7, and only 394 without the referral loop.
 
 The question it answers every morning: *Are we on plan, and which channel or college should get our effort today?*

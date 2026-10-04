@@ -7,7 +7,6 @@
   "use strict";
 
   const C = window.CONFIG;
-  const DEMO = !C.API_URL;
   const $ = (s, el = document) => el.querySelector(s);
   const app = $("#app");
 
@@ -15,7 +14,7 @@
   const DAILY_TARGET = [40, 60, 70, 80, 90, 90, 70];
 
   const BRANCHES = ["CSE", "CSE (AI/ML)", "CSE (Data Science)", "IT", "ECE", "EEE", "Mechanical", "Civil", "Other"];
-  // Telangana, Andhra Pradesh and Tamil Nadu (interleaved so demo data spreads across states)
+  // Suggestions for the college field (Telangana, Andhra Pradesh, Tamil Nadu); students can type any college
   const COLLEGES = [
     "Amrita Vishwa Vidyapeetham, Coimbatore", "JNTU Hyderabad", "PSG College of Technology", "CBIT Hyderabad",
     "SSN College of Engineering", "VNR VJIET", "Kumaraguru College of Technology", "KL University",
@@ -32,13 +31,8 @@
 
   // ---------- utils ----------
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "Friend";
-  const shortName = (n) => {
-    const p = String(n || "").trim().split(/\s+/);
-    return p.length > 1 ? `${p[0]} ${p[p.length - 1][0]}.` : p[0];
-  };
   const normCollege = (s) => String(s || "").trim().replace(/\s+/g, " ");
-  const dayKey = (ts) => new Date(ts).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const { dayKey } = window.Analytics;
   const baseUrl = () => location.href.split(/[?#]/)[0];
   const inviteLink = (code) => `${baseUrl()}?ref=${encodeURIComponent(code)}`;
 
@@ -64,105 +58,18 @@
     src: safeGet(sessionStorage, "src") || "",
   });
 
-  // ---------- shared analytics (mirrored in backend/Code.gs) ----------
-  function sourceOf(r) {
-    if (r.referredBy) return "referral";
-    const s = (r.source || "").toLowerCase();
-    if (s.startsWith("amb")) return "ambassador";
-    if (["wa", "whatsapp"].includes(s)) return "whatsapp";
-    if (["li", "linkedin"].includes(s)) return "linkedin";
-    if (["ig", "instagram"].includes(s)) return "instagram";
-    if (s.startsWith("club")) return "club";
-    return s || "direct";
-  }
-
-  function computeLeaderboard(rows) {
-    const colleges = {}, refs = {};
-    rows.forEach((r) => {
-      colleges[r.college] = (colleges[r.college] || 0) + 1;
-      if (r.referredBy) refs[r.referredBy] = (refs[r.referredBy] || 0) + 1;
-    });
-    const byCode = Object.fromEntries(rows.map((r) => [r.code, r]));
-    return {
-      total: rows.length,
-      colleges: Object.entries(colleges).map(([college, count]) => ({ college, count })).sort((a, b) => b.count - a.count).slice(0, 15),
-      referrers: Object.entries(refs)
-        .filter(([code]) => byCode[code])
-        .map(([code, count]) => ({ name: shortName(byCode[code].name), college: byCode[code].college, count }))
-        .sort((a, b) => b.count - a.count).slice(0, 10),
-    };
-  }
-
-  function computeMe(rows, code) {
-    const me = rows.find((r) => r.code === code);
-    if (!me) return null;
-    const lb = computeLeaderboard(rows);
-    const allColleges = {};
-    rows.forEach((r) => (allColleges[r.college] = (allColleges[r.college] || 0) + 1));
-    const ranked = Object.entries(allColleges).sort((a, b) => b[1] - a[1]);
-    return {
-      name: firstName(me.name), code: me.code, college: me.college,
-      referrals: rows.filter((r) => r.referredBy === code).length,
-      collegeCount: allColleges[me.college] || 0,
-      collegeRank: ranked.findIndex(([c]) => c === me.college) + 1,
-      total: lb.total,
-    };
-  }
-
-  function computeStats(rows) {
-    const by = (fn) => rows.reduce((m, r) => ((m[fn(r)] = (m[fn(r)] || 0) + 1), m), {});
-    const referred = rows.filter((r) => r.referredBy).length;
-    const referrerCount = new Set(rows.filter((r) => r.referredBy).map((r) => r.referredBy)).size;
-    return {
-      total: rows.length,
-      referred,
-      viral: rows.length ? referred / Math.max(1, rows.length - referred) : 0,
-      activeReferrers: referrerCount,
-      byDay: by((r) => dayKey(r.ts)),
-      bySource: by(sourceOf),
-      byBranch: by((r) => r.branch),
-      byCollege: by((r) => r.college),
-      top: computeLeaderboard(rows).referrers,
-      firstTs: rows.length ? Math.min(...rows.map((r) => r.ts)) : Date.now(),
-    };
-  }
-
-  // ---------- API: demo (localStorage) or Google Apps Script ----------
-  const KEY = "nxt_regs_v1";
-  const local = {
-    rows() {
-      try { return JSON.parse(safeGet(localStorage, KEY) || "null") || seed(); } catch { return seed(); }
-    },
-    save(rows) { safeSet(localStorage, KEY, JSON.stringify(rows)); },
-    async register(d) {
-      const rows = this.rows();
-      const existing = rows.find((r) => r.email === d.email || r.phone === d.phone);
-      if (existing) return { ok: true, existing: true, code: existing.code };
-      const code = makeCode(d.name, new Set(rows.map((r) => r.code)));
-      const ref = rows.some((r) => r.code === d.ref) ? d.ref : "";
-      rows.push({ ts: Date.now(), name: d.name, email: d.email, phone: d.phone, college: d.college, branch: d.branch, year: d.year, code, referredBy: ref, source: d.src });
-      this.save(rows);
-      return { ok: true, code };
-    },
-    async find(q) {
-      const r = this.rows().find((x) => x.email === q || x.phone === q);
-      return r ? { ok: true, code: r.code } : { ok: false };
-    },
-    async me(code) { const m = computeMe(this.rows(), code); return m ? { ok: true, ...m } : { ok: false }; },
-    async leaderboard() { return { ok: true, ...computeLeaderboard(this.rows()) }; },
-    async stats(key) { return key === C.ADMIN_KEY ? { ok: true, ...computeStats(this.rows()) } : { ok: false, error: "Wrong admin key" }; },
-    async export(key) { return key === C.ADMIN_KEY ? { ok: true, rows: this.rows() } : { ok: false, error: "Wrong admin key" }; },
-  };
-
+  // ---------- API (Vercel serverless function + Upstash Redis, see api/index.js) ----------
   async function call(action, payload = {}) {
-    const res = await fetch(C.API_URL, {
+    const res = await fetch(C.API_URL || "/api", {
       method: "POST",
-      // text/plain keeps this a "simple" request so Apps Script needs no CORS preflight
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, ...payload }),
     });
-    return res.json();
+    let data;
+    try { data = await res.json(); } catch { throw new Error("Server unavailable. Please try again in a minute."); }
+    return data;
   }
-  const remote = {
+  const api = {
     register: (d) => call("register", d),
     find: (q) => call("find", { q }),
     me: (code) => call("me", { code }),
@@ -170,45 +77,6 @@
     stats: (key) => call("stats", { key }),
     export: (key) => call("export", { key }),
   };
-  const api = DEMO ? local : remote;
-
-  function makeCode(name, taken) {
-    const stem = (String(name).replace(/[^a-z]/gi, "").toUpperCase() + "XXXX").slice(0, 4);
-    let code;
-    do code = stem + Math.floor(100 + Math.random() * 900); while (taken.has(code));
-    return code;
-  }
-
-  // Sample data so the demo dashboards aren't empty. Clearly labelled via the banner.
-  function seed() {
-    const first = ["Aarav", "Sai", "Harsha", "Priya", "Sneha", "Rahul", "Karthik", "Divya", "Teja", "Lakshmi", "Vamsi", "Anusha", "Rohit", "Keerthi", "Manoj", "Pavani", "Nikhil", "Swathi", "Charan", "Meghana", "Abhinav", "Bhavya", "Ganesh", "Harika", "Yash", "Arun", "Kavya", "Surya", "Divya", "Vignesh", "Janani", "Pranav", "Nandhini", "Hari", "Aishwarya"];
-    const last = ["Reddy", "Kumar", "Rao", "Sharma", "Naidu", "Varma", "Chowdary", "Goud", "Patel", "Iyer", "Krishnan", "Subramanian", "Murugan", "Rajan", "Natarajan", "Pillai"];
-    const pick = (a) => a[Math.floor(Math.random() * a.length)];
-    const rows = [], taken = new Set();
-    const now = Date.now(), day = 864e5;
-    const todayStart = new Date(dayKey(now) + "T00:00:00+05:30").getTime();
-    const start = todayStart - 3 * day; // pretend today is day 4 of the campaign
-    const perDay = [38, 57, 74, 31]; // today is partial
-    const srcMix = ["amb", "amb", "amb", "wa", "wa", "club", "li", "ig", ""];
-    perDay.forEach((n, d) => {
-      for (let i = 0; i < n; i++) {
-        const name = `${pick(first)} ${pick(last)}`;
-        const code = makeCode(name, taken); taken.add(code);
-        const referrable = rows.filter((r) => r.ts < start + d * day + day);
-        const isRef = rows.length > 10 && Math.random() < 0.34;
-        const parent = isRef ? referrable[Math.floor(Math.pow(Math.random(), 2.2) * referrable.length)] : null;
-        rows.push({
-          ts: Math.min(now - 60e3, start + d * day + Math.random() * (d === 3 ? (now - todayStart) : day)),
-          name, email: `${code.toLowerCase()}@example.com`, phone: "9" + String(Math.floor(1e8 + Math.random() * 9e8)),
-          college: parent && Math.random() < 0.7 ? parent.college : COLLEGES[Math.floor(Math.pow(Math.random(), 1.6) * COLLEGES.length)],
-          branch: pick(BRANCHES.slice(0, 6)), year: "Final year", code,
-          referredBy: parent ? parent.code : "", source: parent ? "" : pick(srcMix),
-        });
-      }
-    });
-    local.save(rows);
-    return rows;
-  }
 
   // ---------- views ----------
   const fmtDate = new Date(C.WORKSHOP_DATE).toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
@@ -300,7 +168,7 @@
       </section>`;
 
     api.leaderboard().then((lb) => {
-      if (!lb.ok) return;
+      if (!lb.ok) { $("#counter").hidden = true; return; }
       $("#count").textContent = lb.total;
       $("#countbar").style.width = Math.min(100, (lb.total / C.GOAL) * 100) + "%";
     }).catch(() => { $("#counter").hidden = true; });
@@ -434,7 +302,6 @@
         <div class="center card">
           <h2>Organiser dashboard</h2>
           <form id="keyform"><label for="k">Admin key</label><input id="k" type="password" required />
-          ${DEMO ? `<p class="note">Demo key: <code>${esc(C.ADMIN_KEY)}</code></p>` : ""}
           <button class="btn" style="margin-top:12px">Open</button></form>
         </div>`;
       $("#keyform").onsubmit = (e) => { e.preventDefault(); safeSet(sessionStorage, "admin_key", $("#k").value); viewAdmin(); };
@@ -531,10 +398,6 @@
     if (location.hash && location.hash !== "#/") { location.hash = "#/"; setTimeout(go, 150); } else go();
   });
 
-  if (DEMO) {
-    $("#demo-banner").hidden = false;
-    $("#reset-demo").onclick = () => { try { localStorage.removeItem(KEY); localStorage.removeItem("my_code"); } catch {} location.hash = "#/"; location.reload(); };
-  }
   window.addEventListener("hashchange", route);
   route();
 })();

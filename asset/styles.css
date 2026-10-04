@@ -27,15 +27,6 @@ a { color: var(--brand); }
 h1, h2, h3 { line-height: 1.15; margin: 0 0 .5em; letter-spacing: -0.02em; }
 p { margin: 0 0 1em; }
 
-#demo-banner {
-  background: #fff7e6; color: var(--warn); font-size: 13px;
-  padding: 8px 16px; text-align: center; border-bottom: 1px solid #fde7c2;
-}
-#demo-banner button {
-  margin-left: 8px; font: inherit; color: inherit; background: none;
-  border: 1px solid currentColor; border-radius: 6px; padding: 1px 8px; cursor: pointer;
-}
-
 .nav {
   position: sticky; top: 0; z-index: 10;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
