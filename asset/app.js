@@ -188,6 +188,25 @@
     cta.textContent = code ? "My invite link" : "Register free";
   }
 
+  function forgetMe() {
+    safeDel(localStorage, "my_code");
+    updateNavCta();
+  }
+
+  // The remembered registration may have been deleted by the organisers: check once per visit.
+  async function verifyRemembered() {
+    const code = myCode();
+    if (!code) return;
+    try {
+      const m = await api.me(code);
+      if (m && m.ok === false && !m.error) {
+        forgetMe();
+        const page = location.hash.replace(/^#\/?/, "").split("/")[0];
+        if (!page || page === "register" || page === "leaderboard") route(); // re-render without the registered state
+      }
+    } catch { /* offline: keep what we have */ }
+  }
+
   // ---------- home ----------
   function viewHome(id) {
     const code = myCode();
@@ -547,6 +566,7 @@
     try { m = await api.me(code); } catch (e) { if (isCurrent(id)) app.innerHTML = errorView(e.message); return; }
     if (!isCurrent(id)) return;
     if (!m.ok) {
+      if (code === myCode()) forgetMe();
       app.innerHTML = `<div class="narrow"><div class="card state">
         <div class="icon-tile">${icon("search")}</div><h2>We couldn't find that invite link</h2>
         <p>Check the code, or look it up with the email or number you registered with.</p>
@@ -1000,4 +1020,5 @@
 
   window.addEventListener("hashchange", route);
   route();
+  verifyRemembered();
 })();
