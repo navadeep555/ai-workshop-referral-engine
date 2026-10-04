@@ -42,9 +42,29 @@
     };
   }
 
+  // Squads of up to 3: a student who registers through a squad member's link joins that squad
+  // if it has space; otherwise they start their own squad as captain. Replayed in sign-up order.
+  const SQUAD_SIZE = 3;
+  function computeSquads(rows) {
+    const squadOf = {}, members = {};
+    [...rows].sort((a, b) => a.ts - b.ts).forEach((r) => {
+      const host = r.referredBy && squadOf[r.referredBy];
+      if (host && members[host].length < SQUAD_SIZE) { squadOf[r.code] = host; members[host].push(r.code); }
+      else { squadOf[r.code] = r.code; members[r.code] = [r.code]; }
+    });
+    return { squadOf, members };
+  }
+
   function computeMe(rows, code) {
     const me = rows.find((r) => r.code === code);
     if (!me) return null;
+    const byCode = Object.fromEntries(rows.map((r) => [r.code, r]));
+    const { squadOf, members } = computeSquads(rows);
+    const captainCode = squadOf[code] || code;
+    const captain = byCode[captainCode] || me;
+    const squadMembers = (members[captainCode] || [code]).map((c) => ({
+      name: firstName(byCode[c].name), you: c === code, captain: c === captainCode,
+    }));
     const colleges = {};
     rows.forEach((r) => (colleges[r.college] = (colleges[r.college] || 0) + 1));
     const ranked = Object.entries(colleges).sort((a, b) => b[1] - a[1]);
@@ -53,7 +73,12 @@
       name: firstName(me.name), code: me.code, college: me.college,
       referrals: friends.length,
       friends: friends.slice(0, 5).map((r) => firstName(r.name)),
-      squad: (me.exp && me.exp.squad) || "A",
+      // the whole squad sees the captain's version, so friends never land on a different page
+      squad: (captain.exp && captain.exp.squad) || "A",
+      squadMembers,
+      squadCaptain: firstName(captain.name),
+      isCaptain: captainCode === code,
+      invitedBy: me.referredBy && byCode[me.referredBy] ? firstName(byCode[me.referredBy].name) : "",
       collegeCount: colleges[me.college] || 0,
       collegeRank: ranked.findIndex(([c]) => c === me.college) + 1,
       total: rows.length,

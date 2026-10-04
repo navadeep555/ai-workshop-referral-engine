@@ -68,10 +68,13 @@ const actions = {
     if (existing) return { ok: true, existing: true, code: existing.code };
 
     const ref = clean(d.ref, 20).toUpperCase();
-    row.referredBy = ref && (await col.countDocuments({ code: ref }, { limit: 1 })) ? ref : "";
-    // Experiments: campus variant comes from the page the student saw; squad variant is assigned here
+    const inviter = ref ? await col.findOne({ code: ref }, { projection: { exp: 1 } }) : null;
+    row.referredBy = inviter ? ref : "";
+    // Experiments: campus variant comes from the page the student saw. Squad variant is random for
+    // new students, but friends inherit their inviter's version so a squad always sees the same page.
     const campus = d.exp && VARIANTS.includes(d.exp.campus) ? d.exp.campus : null;
-    row.exp = { squad: Math.random() < 0.5 ? "A" : "B", ...(campus ? { campus } : {}) };
+    const squad = inviter ? (inviter.exp && inviter.exp.squad) || "A" : Math.random() < 0.5 ? "A" : "B";
+    row.exp = { squad, ...(campus ? { campus } : {}) };
 
     const stem = (row.name.replace(/[^a-z]/gi, "").toUpperCase() + "XXXX").slice(0, 4);
     for (let i = 0; i < 20; i++) {

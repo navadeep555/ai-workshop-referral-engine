@@ -577,18 +577,21 @@
     }
     const variant = forced("squad") || m.squad || "A";
     const squad = variant === "B";
-    const friends = m.friends || [];
+    // Squad: captain first, then members in the order they joined (max 3)
+    const members = (m.squadMembers && m.squadMembers.length ? m.squadMembers : [{ name: m.name, you: true, captain: true }]).slice(0, 3);
+    const captainName = m.squadCaptain || m.name;
+    const left = Math.max(0, 3 - members.length);
     const link = inviteLink(m.code);
     const msg = squad
       ? `I'm building an AI Resume Reviewer live on ${fmtDate}. It's free and takes 60 minutes 🚀\n\n` +
-        `I need 2 more people for my AI squad. Join me and we'll build it together:\n${link}`
+        (left ? `Our AI squad has ${left} spot${left === 1 ? "" : "s"} left. Join us and we'll build it together:\n${link}`
+              : `Join me at the workshop and start your own AI squad:\n${link}`)
       : `Hey! I just signed up for a FREE live workshop: "${C.WORKSHOP_TITLE}" 🚀\n\n` +
         `In 60 minutes we build and deploy an AI Resume Reviewer. It's a real project for our resumes before placements.\n` +
         `📅 ${fmtDate}\n\nRegister with my link (it's free): ${link}`;
     const next = C.REWARDS.find((t) => m.referrals < t.at);
     const prevAt = [...C.REWARDS].reverse().find((t) => m.referrals >= t.at)?.at || 0;
     const pct = next ? ((m.referrals - prevAt) / (next.at - prevAt)) * 100 : 100;
-    const left = Math.max(0, 2 - m.referrals);
 
     const shareButtons = `
       <div class="linkbox">
@@ -604,14 +607,18 @@
 
     const inviteBlock = squad ? `
       <span class="eyebrow">${icon("users")} Squad challenge</span>
-      <h2 class="squad-title">${left ? "Build your 3-person AI squad" : "Your AI squad is complete!"}</h2>
+      <h2 class="squad-title">${!left ? (m.isCaptain ? "Your AI squad is complete!" : `${esc(captainName)}'s AI squad is complete!`)
+        : m.isCaptain ? "Build your 3-person AI squad" : `You're in ${esc(captainName)}'s AI squad`}</h2>
       <p class="muted">${left
-        ? `Get <b>${left}</b> more friend${left === 1 ? "" : "s"} registered. Squads build together on workshop day, and complete squads get their questions answered first.`
-        : "You'll build together on workshop day, and complete squads get their questions answered first."}</p>
+        ? `${left} spot${left === 1 ? "" : "s"} left. Anyone who joins through your link${m.isCaptain ? "" : ` or ${esc(captainName)}'s`} fills the next spot. Squads build together on workshop day, and complete squads get their questions answered first.`
+        : "You'll build together on workshop day, and complete squads get their questions answered first. Friends who join through your link now still count towards your rewards."}</p>
       <div class="squad">
-        ${[m.name, friends[0], friends[1]].map((n, i) => n
-          ? `<div class="slot filled"><span class="avatar">${esc(n[0] || "?")}</span><b>${esc(n)}</b><small>${i ? "Joined" : "You"}</small></div>`
-          : `<div class="slot"><span class="avatar">+</span><b>Open spot</b><small>Invite a friend</small></div>`).join("")}
+        ${[0, 1, 2].map((i) => {
+          const p = members[i];
+          if (!p) return `<div class="slot"><span class="avatar">+</span><b>Open spot</b><small>Invite a friend</small></div>`;
+          const tag = p.you && p.captain ? "You · Captain" : p.you ? "You" : p.captain ? "Captain" : "Joined";
+          return `<div class="slot filled${p.you ? " me" : ""}"><span class="avatar">${esc(p.name[0] || "?")}</span><b>${esc(p.name)}</b><small>${tag}</small></div>`;
+        }).join("")}
       </div>
       <div class="card-preview">
         <canvas id="squad-card" width="1080" height="1350" role="img" aria-label="Your squad share card"></canvas>
@@ -682,7 +689,7 @@
     if (squad) {
       const canvas = $("#squad-card");
       const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
-      fontsReady.then(() => { if (isCurrent(id)) drawSquadCard(canvas, m, friends, link); });
+      fontsReady.then(() => { if (isCurrent(id)) drawSquadCard(canvas, m, members, link); });
       const toBlob = () => new Promise((res) => canvas.toBlob(res, "image/png"));
       const fileName = `ai-squad-${m.code}.png`;
       const download = async () => {
@@ -703,7 +710,7 @@
   }
 
   // 1080×1350 share card (WhatsApp Status / Instagram friendly)
-  function drawSquadCard(canvas, m, friends, link) {
+  function drawSquadCard(canvas, m, members, link) {
     const ctx = canvas.getContext("2d"), W = canvas.width, H = canvas.height;
     const F = "'Plus Jakarta Sans', 'Segoe UI', sans-serif";
     const rect = (x, y, w, h, r) => { ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); };
@@ -731,7 +738,7 @@
     ctx.fillText(`${fmtDay} · ${fmtTime} IST · Free`, 80, 680);
 
     // squad slots
-    [m.name, friends[0], friends[1]].forEach((n, i) => {
+    [0, 1, 2].map((i) => members[i] && members[i].name).forEach((n, i) => {
       const cx = 200 + i * 340, cy = 860;
       ctx.beginPath(); ctx.arc(cx, cy, 92, 0, Math.PI * 2);
       if (n) {
@@ -854,7 +861,7 @@
         </div>
         <div class="card">
           <span class="eyebrow">${icon("gift")} Test 2 · Squad Challenge</span>
-          <p class="muted">Students share more when it's a challenge with friends and a card that represents them, compared with a plain "invite your friends". Each new registrant is randomly assigned A or B.</p>
+          <p class="muted">Students share more when it's a challenge with friends and a card that represents them, compared with a plain "invite your friends". New students are randomly assigned A or B; friends who join through an invite get the same version and join that squad.</p>
           <div class="table-scroll"><table class="exp-table">
             <thead><tr><th>Version</th><th>Students</th><th>Shared</th><th>Friends brought</th><th>Per student</th></tr></thead>
             <tbody>
