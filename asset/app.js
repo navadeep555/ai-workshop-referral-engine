@@ -232,6 +232,7 @@
             <div><strong id="count">…</strong> <span class="note">students registered</span></div>
             <div class="bar"><i id="countbar" style="width:0"></i></div>
           </div>
+          <p class="note" style="margin-top:12px">📈 Organisers: <a href="#/simulator">see how the 7-day plan reaches 500 in the Campaign Simulator →</a></p>
         </div>
         <div class="card form-card" id="register">
           <h2>Reserve your seat</h2>
@@ -497,9 +498,11 @@
     const h = location.hash.replace(/^#\/?/, "");
     const [page, arg] = h.split("/");
     window.scrollTo(0, 0);
+    window.Sim.stop();
     const run =
       page === "me" && arg ? viewMe(arg.toUpperCase()) :
       page === "leaderboard" ? viewLeaderboard() :
+      page === "simulator" ? window.Sim.view(app) :
       page === "find" ? viewFind() :
       page === "admin" ? viewAdmin() :
       viewHome();

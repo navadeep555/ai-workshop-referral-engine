@@ -5,11 +5,14 @@ A growth plan and a working referral app to get **500 final-year engineering stu
 - `SURVEY.md`: a student survey that tests the plan's assumptions with real data
 - `asset/`: the working asset (static site plus a Google Sheets backend)
 
+**Live app:** https://navadeep555.github.io/ai-workshop-referral-engine/
+
 ## What the app does
 - **Registration page:** records where each sign-up came from (ambassador link, WhatsApp, a friend's invite and so on)
 - **Personal invite page:** each student gets a unique link, a one-tap WhatsApp or LinkedIn share and rewards for bringing friends
 - **College Challenge leaderboard:** colleges compete on how many students they bring
 - **Organiser dashboard:** sign-ups against the daily plan, a split by channel, the viral ratio and CSV export
+- **Campaign Simulator:** runs the 7-day plan as a live model (every dot is one student, lines show who invited whom). Sliders change each assumption, presets compare "My plan", "Pessimistic" and "No referral loop", and it shows which change would add the most registrations.
 
 ## Run locally
 ```
