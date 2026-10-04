@@ -58,6 +58,8 @@
   const WA_ICON = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.8 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7a2.8 2.8 0 0 0 1.8-1.3 2.3 2.3 0 0 0 .2-1.3c-.1-.1-.3-.2-.6-.3z"/></svg>';
   const LI_ICON = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9.75h4V21H3zM9.5 9.75h3.8v1.6h.06a4.17 4.17 0 0 1 3.75-2.05c4 0 4.74 2.64 4.74 6.07V21h-4v-5.05c0-1.2 0-2.75-1.68-2.75s-1.94 1.31-1.94 2.66V21h-4z"/></svg>';
 
+  const DC_ICON = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.3 5.3A17 17 0 0 0 15 4l-.5 1a15.6 15.6 0 0 0-5 0L9 4a17 17 0 0 0-4.3 1.3C2 9.4 1.3 13.4 1.6 17.3A17.2 17.2 0 0 0 6.9 20l1.1-1.8a11 11 0 0 1-1.8-.9l.4-.3a12.2 12.2 0 0 0 10.8 0l.4.3a11 11 0 0 1-1.8.9l1.1 1.8a17.1 17.1 0 0 0 5.3-2.7c.4-4.5-.7-8.5-3.1-12zM8.7 14.9c-1 0-1.9-1-1.9-2.1s.8-2.1 1.9-2.1 1.9 1 1.9 2.1-.8 2.1-1.9 2.1zm6.6 0c-1 0-1.9-1-1.9-2.1s.8-2.1 1.9-2.1 1.9 1 1.9 2.1-.8 2.1-1.9 2.1z"/></svg>';
+
   // ---------- utils ----------
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const normCollege = (s) => String(s || "").trim().replace(/\s+/g, " ");
@@ -88,6 +90,13 @@
     const q = new URLSearchParams(location.search);
     if (q.get("ref")) safeSet(sessionStorage, "ref", q.get("ref").toUpperCase());
     if (q.get("src")) safeSet(sessionStorage, "src", q.get("src").toLowerCase());
+    if (q.get("college")) safeSet(sessionStorage, "college", q.get("college"));
+    // Preview a variant without counting it: ?v_campus=B or ?v_squad=B
+    ["campus", "squad"].forEach((e) => {
+      const v = (q.get("v_" + e) || "").toUpperCase();
+      if (v === "A" || v === "B") safeSet(sessionStorage, "force_" + e, v);
+      if (v === "OFF") safeDel(sessionStorage, "force_" + e);
+    });
   })();
   const attribution = () => ({
     ref: safeGet(sessionStorage, "ref") || "",
@@ -115,9 +124,31 @@
     find: (q) => call("find", { q }),
     me: (code) => call("me", { code }),
     leaderboard: () => call("leaderboard"),
+    college: (name) => call("college", { name }),
     stats: (key) => call("stats", { key }),
     export: (key) => call("export", { key }),
   };
+
+  // ---------- experiments ----------
+  const forced = (exp) => safeGet(sessionStorage, "force_" + exp);
+  function track(exp, variant, event, extra = {}) {
+    if (forced(exp)) return; // previews are never counted
+    try {
+      fetch(C.API_URL || "/api", {
+        method: "POST", keepalive: true, headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "track", exp, variant, event, ...extra }),
+      }).catch(() => {});
+    } catch { /* tracking must never break the page */ }
+  }
+  const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter(Boolean);
+  // "amrita-coimbatore" → "Amrita Vishwa Vidyapeetham, Coimbatore"; unknown names are used as typed
+  function resolveCollege(raw) {
+    if (!raw) return "";
+    const want = slug(raw);
+    const hit = COLLEGES.find((c) => { const have = slug(c); return want.every((w) => have.includes(w)); });
+    return hit || (/[A-Z\s]/.test(raw) ? normCollege(raw) : "");
+  }
+  const shortCollege = (c) => String(c).split(",")[0].replace(/\s*\(.*\)\s*/, " ").trim();
 
   // ---------- shared view pieces ----------
   let routeSeq = 0;
@@ -155,8 +186,8 @@
       <div class="hero-band">
         <section class="wrap hero">
           <div>
-            <span class="eyebrow">${icon("spark")} Free · Live · For final-year engineering students</span>
-            <h1>Build your first <span class="grad">AI project</span> in 60 minutes.</h1>
+            <span class="eyebrow" id="hero-eyebrow">${icon("spark")} Free · Live · For final-year engineering students</span>
+            <h1 id="hero-title">Build your first <span class="grad">AI project</span> in 60 minutes.</h1>
             <p class="lede">Placement interviews now ask, “Have you built anything with AI?” In one live hour you'll build and deploy an
               <b>AI Resume Reviewer</b>, and leave with a public link and a GitHub repo for your resume.</p>
             <ul class="facts">
@@ -166,7 +197,7 @@
               <li>${icon("tag")} Free</li>
             </ul>
             <div class="counter" id="counter">
-              <div class="counter-top"><span><strong id="count" class="skeleton">000</strong>students registered</span><span id="seats">${C.GOAL} seats</span></div>
+              <div class="counter-top"><span><strong id="count" class="skeleton">000</strong><span id="count-label">students registered</span></span><span id="seats">${C.GOAL} seats</span></div>
               <div class="bar"><i id="countbar" style="width:0"></i></div>
             </div>
             <a class="hero-link" href="#/simulator">${icon("chart")} See how the 7-day plan reaches ${C.GOAL} ${icon("arrow")}</a>
@@ -270,7 +301,7 @@
 
     // Social proof counter
     api.leaderboard().then((lb) => {
-      if (!isCurrent(id)) return;
+      if (!isCurrent(id) || $("#counter").dataset.campus) return;
       if (!lb.ok) { $("#counter").hidden = true; return; }
       const count = $("#count");
       count.classList.remove("skeleton");
@@ -279,14 +310,45 @@
       requestAnimationFrame(() => { $("#countbar").style.width = Math.max(2, Math.min(100, (lb.total / C.GOAL) * 100)) + "%"; });
     }).catch(() => { if (isCurrent(id)) $("#counter").hidden = true; });
 
-    // Who invited this visitor (shown without blocking the page)
+    // Who invited this visitor (shown without blocking the page). Their college also drives the campus experiment.
     const { ref } = attribution();
+    const linkCollege = resolveCollege(safeGet(sessionStorage, "college"));
+    if (linkCollege) applyCampus(id, linkCollege);
     if (ref) {
       api.me(ref).then((m) => {
         if (!isCurrent(id) || !m.ok) return;
         $("#ref-slot").innerHTML = `<div class="ref-note">${icon("users")}<span><b>${esc(m.name)}</b> invited you. Sign up and you'll both move up the leaderboard.</span></div>`;
+        if (!linkCollege) applyCampus(id, m.college);
       }).catch(() => {});
     }
+  }
+
+  // Experiment 1 — Campus Identity. Only visitors whose college we know (ambassador link with
+  // ?college=…, or a friend's invite) take part. A = standard page, B = "<College> AI Project Sprint".
+  function applyCampus(id, college) {
+    if (!isCurrent(id) || !college) return;
+    const field = $("#f-college");
+    if (field && !field.value) field.value = college; // prefilled in both versions so only the message differs
+    const variant = forced("campus") || window.Analytics.hashVariant(college);
+    if (!forced("campus")) {
+      safeSet(sessionStorage, "campus_variant", variant);
+      if (!safeGet(sessionStorage, "campus_seen")) { safeSet(sessionStorage, "campus_seen", "1"); track("campus", variant, "view"); }
+    }
+    if (variant !== "B") return;
+    const short = shortCollege(college);
+    $("#hero-eyebrow").innerHTML = `${icon("users")} ${esc(short)} · Campus AI Project Sprint`;
+    $("#hero-title").innerHTML = `The <span class="grad">${esc(short)}</span> AI Project Sprint`;
+    $("#hero-title").insertAdjacentHTML("afterend", `<p class="hero-sub">Build your first AI project in 60 minutes, together with students from your campus.</p>`);
+    api.college(college).then((c) => {
+      if (!isCurrent(id) || !c.ok) return;
+      const count = $("#count");
+      count.classList.remove("skeleton");
+      count.textContent = c.count;
+      $("#count-label").textContent = `from ${short} registered`;
+      $("#seats").textContent = c.count ? `Campus rank #${c.rank} of ${c.colleges}` : "Be the first from your campus";
+      $("#countbar").style.width = Math.max(2, Math.min(100, (c.count / 50) * 100)) + "%"; // campus goal: 50
+      $("#counter").dataset.campus = "1";
+    }).catch(() => {});
   }
 
   function setFieldError(name, msg) {
@@ -324,7 +386,8 @@
     btn.disabled = true;
     btn.innerHTML = `<span class="spinner"></span> Reserving your seat…`;
     try {
-      const res = await must(api.register({ ...d, ...attribution() }));
+      const campus = safeGet(sessionStorage, "campus_variant");
+      const res = await must(api.register({ ...d, ...attribution(), exp: campus ? { campus } : {} }));
       safeSet(localStorage, "my_code", res.code);
       if (res.existing) toast("You're already registered. Here's your invite link.");
       location.hash = `#/me/${res.code}`;
@@ -336,6 +399,8 @@
   }
 
   // ---------- personal invite page ----------
+  // Experiment 2 — Squad Challenge. A = "invite your friends" + rewards,
+  // B = "build your 3-person AI squad" + a personal share card. Variant is assigned at registration.
   async function viewMe(id, code) {
     app.innerHTML = loadingView(6);
     let m;
@@ -348,14 +413,56 @@
         <a class="btn" href="#/find">Find my link</a></div></div>`;
       return;
     }
+    const variant = forced("squad") || m.squad || "A";
+    const squad = variant === "B";
+    const friends = m.friends || [];
     const link = inviteLink(m.code);
-    const msg =
-      `Hey! I just signed up for a FREE live workshop: "${C.WORKSHOP_TITLE}" 🚀\n\n` +
-      `In 60 minutes we build and deploy an AI Resume Reviewer. It's a real project for our resumes before placements.\n` +
-      `📅 ${fmtDate}\n\nRegister with my link (it's free): ${link}`;
+    const msg = squad
+      ? `I'm building an AI Resume Reviewer live on ${fmtDate}. It's free and takes 60 minutes 🚀\n\n` +
+        `I need 2 more people for my AI squad. Join me and we'll build it together:\n${link}`
+      : `Hey! I just signed up for a FREE live workshop: "${C.WORKSHOP_TITLE}" 🚀\n\n` +
+        `In 60 minutes we build and deploy an AI Resume Reviewer. It's a real project for our resumes before placements.\n` +
+        `📅 ${fmtDate}\n\nRegister with my link (it's free): ${link}`;
     const next = C.REWARDS.find((t) => m.referrals < t.at);
     const prevAt = [...C.REWARDS].reverse().find((t) => m.referrals >= t.at)?.at || 0;
     const pct = next ? ((m.referrals - prevAt) / (next.at - prevAt)) * 100 : 100;
+    const left = Math.max(0, 2 - m.referrals);
+
+    const shareButtons = `
+      <div class="linkbox">
+        <div class="link-text" id="mylink">${esc(link)}</div>
+        <button class="btn btn-ghost" id="copy" type="button" data-share>${icon("copy")} Copy link</button>
+      </div>
+      <div class="share-row share-3">
+        <a class="btn btn-wa" target="_blank" rel="noopener" data-share href="https://wa.me/?text=${encodeURIComponent(msg)}">${WA_ICON} WhatsApp</a>
+        <button class="btn btn-dc" type="button" id="share-dc" data-share>${DC_ICON} Discord</button>
+        <a class="btn btn-li" target="_blank" rel="noopener" data-share href="https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(link)}">${LI_ICON} LinkedIn</a>
+      </div>
+      ${C.DISCORD_INVITE ? `<a class="btn btn-ghost btn-block community" target="_blank" rel="noopener" href="${esc(C.DISCORD_INVITE)}">${DC_ICON} Join the workshop Discord</a>` : ""}`;
+
+    const inviteBlock = squad ? `
+      <span class="eyebrow">${icon("users")} Squad challenge</span>
+      <h2 class="squad-title">${left ? "Build your 3-person AI squad" : "Your AI squad is complete!"}</h2>
+      <p class="muted">${left
+        ? `Get <b>${left}</b> more friend${left === 1 ? "" : "s"} registered. Squads build together on workshop day, and complete squads get their questions answered first.`
+        : "You'll build together on workshop day, and complete squads get their questions answered first."}</p>
+      <div class="squad">
+        ${[m.name, friends[0], friends[1]].map((n, i) => n
+          ? `<div class="slot filled"><span class="avatar">${esc(n[0] || "?")}</span><b>${esc(n)}</b><small>${i ? "Joined" : "You"}</small></div>`
+          : `<div class="slot"><span class="avatar">+</span><b>Open spot</b><small>Invite a friend</small></div>`).join("")}
+      </div>
+      <div class="card-preview">
+        <canvas id="squad-card" width="1080" height="1350" role="img" aria-label="Your squad share card"></canvas>
+        <div class="card-actions">
+          <p class="muted" style="margin:0">Post your squad card on WhatsApp Status or Instagram. It has your code on it, so friends can sign up straight away.</p>
+          <button class="btn" id="share-card" type="button" data-share>${icon("arrow")} Share my squad card</button>
+          <button class="btn btn-ghost" id="dl-card" type="button" data-share>${icon("download")} Download card</button>
+        </div>
+      </div>
+      ${shareButtons}` : `
+      <h3>Bring your friends</h3>
+      <p class="muted" style="margin-bottom:0">Classmates who join through your link count towards your rewards and push your college up the leaderboard.</p>
+      ${shareButtons}`;
 
     app.innerHTML = `
       <div class="narrow">
@@ -372,16 +479,7 @@
           </div>
 
           <hr class="divider" />
-          <h3>Bring your friends</h3>
-          <p class="muted" style="margin-bottom:0">Classmates who join through your link count towards your rewards and push your college up the leaderboard.</p>
-          <div class="linkbox">
-            <div class="link-text" id="mylink">${esc(link)}</div>
-            <button class="btn btn-ghost" id="copy" type="button">${icon("copy")} Copy link</button>
-          </div>
-          <div class="share-row">
-            <a class="btn btn-wa" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(msg)}">${WA_ICON} Share on WhatsApp</a>
-            <a class="btn btn-li" target="_blank" rel="noopener" href="https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(link)}">${LI_ICON} Share on LinkedIn</a>
-          </div>
+          ${inviteBlock}
 
           <div class="progress">
             <div class="progress-top"><b>${next ? `${next.at - m.referrals} more to unlock ${esc(next.title)}` : "Every reward unlocked"}</b><span class="muted">${m.referrals}/${next ? next.at : C.REWARDS[C.REWARDS.length - 1].at}</span></div>
@@ -398,6 +496,9 @@
         </div>
       </div>`;
 
+    // every share action counts towards the experiment's share rate
+    app.querySelectorAll("[data-share]").forEach((el) => el.addEventListener("click", () => track("squad", variant, "share", { code: m.code })));
+
     $("#copy").onclick = async () => {
       try { await navigator.clipboard.writeText(link); }
       catch {
@@ -408,6 +509,89 @@
       toast("Invite link copied");
       setTimeout(() => { const b = $("#copy"); if (b) b.innerHTML = `${icon("copy")} Copy link`; }, 2000);
     };
+
+    $("#share-dc").onclick = async () => {
+      const dcMsg = msg.split(link).join(`${link}&src=discord`);
+      try { await navigator.clipboard.writeText(dcMsg); toast("Message copied. Paste it in your Discord server or DMs."); }
+      catch { toast("Couldn't copy automatically. Use Copy link instead."); }
+      window.open("https://discord.com/channels/@me", "_blank", "noopener");
+    };
+
+    if (squad) {
+      const canvas = $("#squad-card");
+      const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
+      fontsReady.then(() => { if (isCurrent(id)) drawSquadCard(canvas, m, friends, link); });
+      const toBlob = () => new Promise((res) => canvas.toBlob(res, "image/png"));
+      const fileName = `ai-squad-${m.code}.png`;
+      const download = async () => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(await toBlob()); a.download = fileName; a.click();
+        toast("Card downloaded. Post it on WhatsApp Status or Instagram!");
+      };
+      $("#dl-card").onclick = download;
+      $("#share-card").onclick = async () => {
+        const file = new File([await toBlob()], fileName, { type: "image/png" });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try { await navigator.share({ files: [file], text: msg }); } catch { /* share sheet closed */ }
+        } else {
+          download();
+        }
+      };
+    }
+  }
+
+  // 1080×1350 share card (WhatsApp Status / Instagram friendly)
+  function drawSquadCard(canvas, m, friends, link) {
+    const ctx = canvas.getContext("2d"), W = canvas.width, H = canvas.height;
+    const F = "'Plus Jakarta Sans', 'Segoe UI', sans-serif";
+    const rect = (x, y, w, h, r) => { ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); };
+
+    const bg = ctx.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, "#0b1020"); bg.addColorStop(1, "#231a66");
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    const glow = ctx.createRadialGradient(W * 0.85, 80, 0, W * 0.85, 80, 700);
+    glow.addColorStop(0, "rgba(124,58,237,.55)"); glow.addColorStop(1, "rgba(124,58,237,0)");
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+
+    // brand
+    const lg = ctx.createLinearGradient(80, 80, 152, 152); lg.addColorStop(0, "#4f46e5"); lg.addColorStop(1, "#7c3aed");
+    ctx.fillStyle = lg; rect(80, 80, 72, 72, 18); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.font = `800 28px ${F}`; ctx.textAlign = "center"; ctx.fillText("AI", 116, 126);
+    ctx.textAlign = "left"; ctx.font = `700 32px ${F}`; ctx.fillStyle = "#d9dcff"; ctx.fillText("60-Minute AI Workshop", 176, 128);
+
+    // headline
+    ctx.fillStyle = "#fff"; ctx.font = `800 104px ${F}`;
+    ctx.fillText("Join my", 80, 340); ctx.fillText("AI squad", 80, 456);
+    const tg = ctx.createLinearGradient(80, 0, 900, 0); tg.addColorStop(0, "#a5b4fc"); tg.addColorStop(1, "#f0abfc");
+    ctx.fillStyle = tg; ctx.font = `700 44px ${F}`;
+    ctx.fillText("We'll build & deploy an AI Resume", 80, 548); ctx.fillText("Reviewer together. Live, in 60 min.", 80, 604);
+    ctx.fillStyle = "#b9bedb"; ctx.font = `600 36px ${F}`;
+    ctx.fillText(`${fmtDay} · ${fmtTime} IST · Free`, 80, 680);
+
+    // squad slots
+    [m.name, friends[0], friends[1]].forEach((n, i) => {
+      const cx = 200 + i * 340, cy = 860;
+      ctx.beginPath(); ctx.arc(cx, cy, 92, 0, Math.PI * 2);
+      if (n) {
+        const g = ctx.createLinearGradient(cx - 90, cy - 90, cx + 90, cy + 90); g.addColorStop(0, "#4f46e5"); g.addColorStop(1, "#7c3aed");
+        ctx.fillStyle = g; ctx.fill();
+      } else {
+        ctx.setLineDash([14, 12]); ctx.lineWidth = 5; ctx.strokeStyle = "rgba(255,255,255,.45)"; ctx.stroke(); ctx.setLineDash([]);
+      }
+      ctx.textAlign = "center"; ctx.fillStyle = "#fff"; ctx.font = `800 ${n ? 78 : 96}px ${F}`;
+      ctx.fillText(n ? n[0].toUpperCase() : "+", cx, cy + (n ? 28 : 34));
+      ctx.font = `700 32px ${F}`; ctx.fillStyle = n ? "#fff" : "#9aa0c7";
+      ctx.fillText(n ? (n.length > 12 ? n.slice(0, 11) + "…" : n) : "You?", cx, cy + 150);
+    });
+
+    // code panel
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#ffffff"; rect(80, 1080, W - 160, 190, 28); ctx.fill();
+    ctx.fillStyle = "#64748b"; ctx.font = `700 30px ${F}`; ctx.fillText("Register free with my code", 124, 1146);
+    ctx.fillStyle = "#4f46e5"; ctx.font = `800 76px ${F}`; ctx.fillText(m.code, 124, 1232);
+    let host = ""; try { host = new URL(link).host; } catch { /* no host */ }
+    ctx.textAlign = "right"; ctx.fillStyle = "#0b1220"; ctx.font = `700 28px ${F}`; ctx.fillText(host, W - 124, 1146);
+    ctx.textAlign = "left";
   }
 
   // ---------- leaderboard ----------
@@ -465,6 +649,60 @@
       } catch (ex) { err.textContent = ex.message; }
       btn.disabled = false; btn.textContent = "Find my link";
     };
+  }
+
+  // ---------- experiment results (dashboard) ----------
+  const pctf = (x) => (x * 100).toFixed(1) + "%";
+  function expVerdict(res, n1, n2, min, betterIsHigher = true) {
+    if (!res.enough) {
+      return `<div class="exp-result">Not enough data yet. Each version needs at least <b>${min}</b> students (now ${n1} and ${n2}). Keep both running.</div>`;
+    }
+    const conf = res.confidence || 0;
+    if (conf < 0.95 || res.lift === null) {
+      return `<div class="exp-result">No clear winner yet (${Math.round(conf * 100)}% confidence, need 95%). Keep both running.</div>`;
+    }
+    const bWins = betterIsHigher ? res.lift > 0 : res.lift < 0;
+    const liftTxt = (res.lift > 0 ? "+" : "") + Math.round(res.lift * 100) + "%";
+    return bWins
+      ? `<div class="exp-result win"><b>Version B wins</b> (${liftTxt}, ${Math.round(conf * 100)}% confidence). Switch everyone to B.</div>`
+      : `<div class="exp-result lose"><b>Version A wins</b> (B is ${liftTxt}, ${Math.round(conf * 100)}% confidence). Keep A.</div>`;
+  }
+
+  function experimentsSection(x) {
+    if (!x) return "";
+    const c = x.campus.arms, q = x.squad.arms;
+    const base = baseUrl();
+    return `
+      <div class="section-head" style="margin-top:40px"><h2>Experiments</h2><p>Two A/B tests run during the campaign. Run them on Days 1–3, then switch everyone to the winner for Days 4–7.</p></div>
+      <div class="grid2">
+        <div class="card">
+          <span class="eyebrow">${icon("users")} Test 1 · Campus Identity</span>
+          <p class="muted">Students respond more to something happening in their own college than to a national online workshop. Only visitors whose college is known take part. Each college always sees the same version.</p>
+          <div class="table-scroll"><table class="exp-table">
+            <thead><tr><th>Version</th><th>Visitors</th><th>Registered</th><th>Conversion</th></tr></thead>
+            <tbody>
+              <tr><td>A · Standard page</td><td>${c[0].views}</td><td>${c[0].regs}</td><td>${pctf(c[0].rate)}</td></tr>
+              <tr><td>B · Campus Sprint</td><td>${c[1].views}</td><td>${c[1].regs}</td><td>${pctf(c[1].rate)}</td></tr>
+            </tbody></table></div>
+          ${expVerdict(x.campus.result, c[0].views, c[1].views, x.minPerGroup)}
+          <div class="exp-preview note">Preview:
+            <a href="${base}?college=amrita-coimbatore&v_campus=A#/" target="_blank" rel="noopener">Version A</a>
+            <a href="${base}?college=amrita-coimbatore&v_campus=B#/" target="_blank" rel="noopener">Version B</a>
+          </div>
+        </div>
+        <div class="card">
+          <span class="eyebrow">${icon("gift")} Test 2 · Squad Challenge</span>
+          <p class="muted">Students share more when it's a challenge with friends and a card that represents them, compared with a plain "invite your friends". Each new registrant is randomly assigned A or B.</p>
+          <div class="table-scroll"><table class="exp-table">
+            <thead><tr><th>Version</th><th>Students</th><th>Shared</th><th>Friends brought</th><th>Per student</th></tr></thead>
+            <tbody>
+              <tr><td>A · Invite friends</td><td>${q[0].registrants}</td><td>${q[0].sharers} (${pctf(q[0].shareRate)})</td><td>${q[0].referrals}</td><td>${q[0].refsPerRegistrant.toFixed(2)}</td></tr>
+              <tr><td>B · 3-person squad</td><td>${q[1].registrants}</td><td>${q[1].sharers} (${pctf(q[1].shareRate)})</td><td>${q[1].referrals}</td><td>${q[1].refsPerRegistrant.toFixed(2)}</td></tr>
+            </tbody></table></div>
+          ${expVerdict(x.squad.result, q[0].registrants, q[1].registrants, x.minPerGroup)}
+          <p class="note" style="margin:12px 0 0">To preview the squad page, add <code>?v_squad=B</code> before the <code>#</code> on any invite page. Previews are never counted.</p>
+        </div>
+      </div>`;
   }
 
   // ---------- organiser dashboard ----------
@@ -546,7 +784,9 @@
             <span><i style="background:#e3e8f0"></i>Days to come (plan)</span>
           </div>
         </div>
-        <div class="grid2" style="margin-top:16px">
+        ${experimentsSection(s.experiments)}
+        <div class="section-head" style="margin-top:40px"><h2>Breakdown</h2></div>
+        <div class="grid2">
           <div class="card"><h3>By channel</h3>${rankList(toItems(s.bySource))}<p class="note" style="margin:12px 0 0">“referral” means the student came through an invite link. Ambassador links use <code>?src=amb_name</code>.</p></div>
           <div class="card"><h3>Top colleges</h3>${rankList(toItems(s.byCollege), { color: "linear-gradient(90deg,#38bdf8,#0ea5e9)" })}</div>
           <div class="card"><h3>By branch</h3>${rankList(toItems(s.byBranch), { color: "linear-gradient(90deg,#a78bfa,#8b5cf6)" })}</div>

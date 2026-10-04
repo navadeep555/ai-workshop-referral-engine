@@ -6,24 +6,30 @@
 const { MongoClient } = require("mongodb");
 const A = require("../analytics.js");
 
-let colPromise = null;
-function registrations() {
-  if (!colPromise) {
-    colPromise = (async () => {
+let dbPromise = null;
+function database() {
+  if (!dbPromise) {
+    dbPromise = (async () => {
       // Fail fast (before Vercel's function timeout) so the user sees a useful message
       const client = await new MongoClient(process.env.MONGODB_URI.trim(), { maxPoolSize: 5, serverSelectionTimeoutMS: 7000 }).connect();
-      const col = client.db(process.env.MONGODB_DB || "ai_workshop").collection("registrations");
-      await col.createIndexes([
+      const db = client.db(process.env.MONGODB_DB || "ai_workshop");
+      await db.collection("registrations").createIndexes([
         { key: { email: 1 }, name: "email_unique", unique: true },
         { key: { phone: 1 }, name: "phone_unique", unique: true },
         { key: { code: 1 }, name: "code_unique", unique: true },
         { key: { referredBy: 1 }, name: "referredBy" },
       ]);
-      return col;
-    })().catch((err) => { colPromise = null; throw err; });
+      return db;
+    })().catch((err) => { dbPromise = null; throw err; });
   }
-  return colPromise;
+  return dbPromise;
 }
+const registrations = async () => (await database()).collection("registrations");
+// Experiment counters: one document per "experiment:variant", e.g. { _id: "campus:B", view: 120, share: 0 }
+const counters = async () => (await database()).collection("experiments");
+
+const VARIANTS = ["A", "B"];
+const TRACKABLE = { campus: ["view"], squad: ["share"] };
 
 async function allRows() {
   const col = await registrations();
@@ -63,6 +69,9 @@ const actions = {
 
     const ref = clean(d.ref, 20).toUpperCase();
     row.referredBy = ref && (await col.countDocuments({ code: ref }, { limit: 1 })) ? ref : "";
+    // Experiments: campus variant comes from the page the student saw; squad variant is assigned here
+    const campus = d.exp && VARIANTS.includes(d.exp.campus) ? d.exp.campus : null;
+    row.exp = { squad: Math.random() < 0.5 ? "A" : "B", ...(campus ? { campus } : {}) };
 
     const stem = (row.name.replace(/[^a-z]/gi, "").toUpperCase() + "XXXX").slice(0, 4);
     for (let i = 0; i < 20; i++) {
@@ -94,13 +103,41 @@ const actions = {
     return m ? { ok: true, ...m } : { ok: false };
   },
 
+  async college(d) {
+    const name = clean(d.name);
+    if (name.length < 3) throw new Error("Unknown college");
+    return { ok: true, ...A.collegeStanding(await allRows(), name) };
+  },
+
+  async track(d) {
+    const exp = clean(d.exp, 20), event = clean(d.event, 20);
+    let variant = clean(d.variant, 2);
+    const allowed = Object.prototype.hasOwnProperty.call(TRACKABLE, exp) ? TRACKABLE[exp] : [];
+    if (!allowed.includes(event)) throw new Error("Unknown event");
+    if (exp === "squad") {
+      // A share always counts under the version this registrant was assigned, whatever the browser says
+      const col = await registrations();
+      const owner = await col.findOne({ code: clean(d.code, 20).toUpperCase() }, { projection: { exp: 1 } });
+      if (!owner) throw new Error("Unknown event");
+      variant = (owner.exp && owner.exp.squad) || "A";
+      // the first share marks the registrant as a "sharer" (share rate = sharers ÷ registrants)
+      await col.updateOne({ _id: owner._id, shared: { $ne: true } }, { $set: { shared: true } });
+    }
+    if (!VARIANTS.includes(variant)) throw new Error("Unknown event");
+    await (await counters()).updateOne({ _id: `${exp}:${variant}` }, { $inc: { [event]: 1 } }, { upsert: true });
+    return { ok: true };
+  },
+
   async leaderboard() {
     return { ok: true, ...A.computeLeaderboard(await allRows()) };
   },
 
   async stats(d) {
     checkKey(d.key);
-    return { ok: true, ...A.computeStats(await allRows()) };
+    const rows = await allRows();
+    const c = {};
+    (await (await counters()).find({}).toArray()).forEach((doc) => (c[doc._id] = doc));
+    return { ok: true, ...A.computeStats(rows), experiments: A.computeExperiments(rows, c) };
   },
 
   async export(d) {

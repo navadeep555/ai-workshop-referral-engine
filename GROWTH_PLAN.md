@@ -56,7 +56,19 @@ Every other reward (prompt pack, priority Q&A, 1:1 review, leaderboard shout-out
 
 ---
 
-## 3. What I built: the Referral Engine
+## 3. Experiments: testing my own hypotheses
+
+I wrote five hypotheses. With about 500 sign-ups in 7 days, five tests would leave roughly 50 students per version, which is too few to trust. So I'm **running 2 tests on Days 1–3, then switching everyone to the winners for Days 4–7**. Both tests are built into the app, and the dashboard reports the winner with a 95% confidence check.
+
+| Test | Hypothesis | A vs B | Metric |
+|---|---|---|---|
+| **Campus Identity** | Students respond more when the campaign feels like it's happening inside their college than to a national online workshop. | Standard page vs "*[College] AI Project Sprint*" with "X students from your college registered" and the campus rank. Split by college (each college always sees one version), and only for visitors whose college we know from an ambassador or friend link. | Visit → registration conversion |
+| **Squad Challenge** (my "Show your friend" and "Peer challenge" ideas combined) | Students share more when it's a challenge with friends and a card that represents them, than with a generic "invite your friends". | "Invite friends + rewards" vs "Build your 3-person AI squad" with a personal share card for WhatsApp Status and Instagram. Each registrant is randomly assigned. | Share rate per registrant, and friends brought per registrant |
+
+**Guardrail:** I'll also track show-up rate on workshop day, because a version that raises sign-ups but lowers attendance isn't a win.
+**Next tests (not this week):** project-led entry points (the workshop must offer a choice of project first, or the ad over-promises), and an instant reward after registration (a starter checklist).
+
+## 4. What I built: the Referral Engine
 
 A working web app that runs channels 1 and 2:
 - **Registration page** with validation and duplicate protection. It captures the source (`src`) and the referrer (`ref`).
@@ -64,6 +76,8 @@ A working web app that runs channels 1 and 2:
 - **College Challenge leaderboard** (top colleges and top inviters).
 - **Organiser dashboard:** registrations against the daily plan, a split by channel, the viral ratio, and how many registrations per day are still needed. It also exports a CSV.
 - **Backend:** a Vercel serverless API with a MongoDB Atlas database. It's free and needs no server to manage. Unique indexes on email, phone and referral code mean the database itself blocks duplicate sign-ups, even when two arrive at the same moment.
+- **Two live A/B tests** (Campus Identity and Squad Challenge), each with its own results panel.
+- **Sharing on WhatsApp, Discord and LinkedIn**, plus a downloadable squad card.
 - **Campaign Simulator:** the 7-day plan as a live model with adjustable assumptions. It shows the plan reaching 500 on Day 7, and only 394 without the referral loop.
 
 The question it answers every morning: *Are we on plan, and which channel or college should get our effort today?*
