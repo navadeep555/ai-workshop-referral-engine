@@ -180,8 +180,23 @@
       </li>`).join("")}</ol>`;
   }
 
+  // ---------- registered state (remembered on this device) ----------
+  const myCode = () => safeGet(localStorage, "my_code");
+  function updateNavCta() {
+    const cta = $("#nav-cta"), code = myCode();
+    cta.href = code ? `#/me/${code}` : "#/register";
+    cta.textContent = code ? "My invite link" : "Register free";
+  }
+
   // ---------- home ----------
   function viewHome(id) {
+    const code = myCode();
+    const ctas = code
+      ? `<a class="btn" href="#/me/${esc(code)}">View my invite link ${icon("arrow")}</a>
+         <a class="btn btn-dark-ghost" href="#/me/${esc(code)}">${icon("users")} Invite friends</a>`
+      : `<a class="btn" href="#/register">Reserve my free seat ${icon("arrow")}</a>
+         <a class="btn btn-dark-ghost" href="#/" data-scroll="plan">See the 60-minute plan</a>`;
+
     app.innerHTML = `
       <div class="hero-band">
         <section class="wrap hero">
@@ -190,6 +205,8 @@
             <h1 id="hero-title">Build your first <span class="grad">AI project</span> in 60 minutes.</h1>
             <p class="lede">Placement interviews now ask, “Have you built anything with AI?” In one live hour you'll build and deploy an
               <b>AI Resume Reviewer</b>, and leave with a public link and a GitHub repo for your resume.</p>
+            <div class="hero-ctas">${ctas}</div>
+            ${code ? `<p class="registered-note">${icon("check")} You're registered for ${esc(fmtDay)}, ${esc(fmtTime)} IST.</p>` : ""}
             <ul class="facts">
               <li>${icon("calendar")} ${esc(fmtDay)}, ${esc(fmtTime)} IST</li>
               <li>${icon("clock")} 60 minutes</li>
@@ -200,50 +217,30 @@
               <div class="counter-top"><span><strong id="count" class="skeleton">000</strong><span id="count-label">students registered</span></span><span id="seats">${C.GOAL} seats</span></div>
               <div class="bar"><i id="countbar" style="width:0"></i></div>
             </div>
-            <a class="hero-link" href="#/simulator">${icon("chart")} See how the 7-day plan reaches ${C.GOAL} ${icon("arrow")}</a>
           </div>
 
-          <div class="card form-card" id="register">
-            <h2>Reserve your seat</h2>
-            <p class="sub">Takes 30 seconds. You'll get your personal invite link straight away.</p>
-            <div id="ref-slot"></div>
-            <form id="regform" novalidate>
-              <div class="field">
-                <label for="f-name">Full name</label>
-                <input id="f-name" name="name" autocomplete="name" placeholder="e.g. Navadeep Maka" aria-describedby="e-name" />
-                <div class="field-err" id="e-name"></div>
-              </div>
-              <div class="field">
-                <label for="f-email">Email</label>
-                <input id="f-email" name="email" type="email" autocomplete="email" placeholder="you@college.edu" aria-describedby="e-email" />
-                <div class="field-err" id="e-email"></div>
-              </div>
-              <div class="field">
-                <label for="f-phone">WhatsApp number</label>
-                <input id="f-phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="10-digit mobile number" aria-describedby="e-phone" />
-                <div class="field-err" id="e-phone"></div>
-              </div>
-              <div class="field">
-                <label for="f-college">College</label>
-                <input id="f-college" name="college" list="colleges" autocomplete="organization" placeholder="Start typing your college" aria-describedby="e-college" />
-                <datalist id="colleges">${COLLEGES.map((c) => `<option value="${esc(c)}">`).join("")}</datalist>
-                <div class="field-err" id="e-college"></div>
-              </div>
-              <div class="row2">
-                <div class="field">
-                  <label for="f-branch">Branch</label>
-                  <select id="f-branch" name="branch" aria-describedby="e-branch"><option value="">Select</option>${BRANCHES.map((b) => `<option>${b}</option>`).join("")}</select>
-                  <div class="field-err" id="e-branch"></div>
+          <div class="preview" aria-label="Preview of the AI Resume Reviewer you'll build">
+            <div class="preview-window">
+              <div class="preview-bar"><span></span><span></span><span></span><em>your-name-resume-ai.vercel.app</em></div>
+              <div class="preview-body">
+                <div class="preview-upload">${icon("form")}<div><b>Navadeep_Resume.pdf</b><small>Analysed in 4.2s</small></div><span class="pill-ok">Done</span></div>
+                <div class="score">
+                  <svg viewBox="0 0 120 120" class="ring" aria-hidden="true">
+                    <circle cx="60" cy="60" r="50" class="ring-bg"/>
+                    <circle cx="60" cy="60" r="50" class="ring-fg" id="ring-fg"/>
+                  </svg>
+                  <div class="score-num"><b id="score-num">0</b><small>/100</small></div>
+                  <div class="score-text"><b>Resume score</b><small>Role: Software Engineer (fresher)</small></div>
                 </div>
-                <div class="field">
-                  <label for="f-year">Year</label>
-                  <select id="f-year" name="year"><option>Final year</option><option>Pre-final year</option><option>Graduated (2025/26)</option><option>Other</option></select>
-                </div>
+                <ul class="feedback">
+                  <li class="good">${icon("check")}<span>Strong projects section with live links</span></li>
+                  <li class="warn">${icon("alert")}<span>Add numbers: “cut load time by 40%”</span></li>
+                  <li class="warn">${icon("alert")}<span>Missing keywords: REST APIs, Git</span></li>
+                </ul>
+                <div class="chips"><span>Python</span><span>LLM API</span><span>Prompting</span><span>Deployed</span></div>
               </div>
-              <div class="form-alert" id="f-alert" role="alert"></div>
-              <button class="btn btn-block" style="margin-top:18px" id="f-submit" type="submit">Register free ${icon("arrow")}</button>
-              <p class="fine">We'll send the joining link and reminders on WhatsApp and email. No spam.</p>
-            </form>
+            </div>
+            <p class="preview-caption">${icon("rocket")} This is the app you'll build and deploy, live, in 60 minutes.</p>
           </div>
         </section>
       </div>
@@ -251,12 +248,12 @@
       <section class="block">
         <div class="section-head"><h2>How it works</h2><p>Four steps from sign-up to a project on your resume.</p></div>
         <div class="steps">
-          <div class="card step"><span class="step-num">01</span><div class="icon-tile">${icon("form")}</div><h3>Register in 30 seconds</h3><p>Fill in your name, email, WhatsApp number and college. It's free.</p></div>
-          <div class="card step"><span class="step-num">02</span><div class="icon-tile">${icon("link")}</div><h3>Get your invite link</h3><p>Your personal link appears straight away. Share it on WhatsApp in one tap.</p></div>
+          <div class="card step"><span class="step-num">01</span><div class="icon-tile">${icon("form")}</div><h3>Reserve your seat</h3><p>Two quick steps: tell us about you, then where to send the joining link. It's free.</p></div>
+          <div class="card step"><span class="step-num">02</span><div class="icon-tile">${icon("link")}</div><h3>Get your invite link</h3><p>Your personal link appears straight away. Share it on WhatsApp or Discord in one tap.</p></div>
           <div class="card step"><span class="step-num">03</span><div class="icon-tile">${icon("gift")}</div><h3>Unlock rewards</h3><p>Invite 1, 3 or 5 friends to unlock the prompt pack, priority Q&amp;A or a 1:1 review.</p></div>
           <div class="card step"><span class="step-num">04</span><div class="icon-tile">${icon("rocket")}</div><h3>Join live and build</h3><p>The joining link arrives on WhatsApp and email before ${esc(fmtDay)}, ${esc(fmtTime)}.</p></div>
         </div>
-        <p class="note" style="margin-top:16px">Lost your invite link? <a href="#/find">Find it with your email or number</a>.</p>
+        <p class="note" style="margin-top:16px">Already registered on another device? <a href="#/find">Find your invite link</a>.</p>
       </section>
 
       <section class="block">
@@ -268,7 +265,7 @@
         </div>
       </section>
 
-      <section class="block grid2">
+      <section class="block grid2" id="plan">
         <div class="card">
           <h3>The 60 minutes</h3>
           <ul class="agenda">
@@ -289,14 +286,30 @@
 
       <section class="wrap">
         <div class="cta-band">
-          <div><h2>Seats are free, but limited to ${C.GOAL}.</h2><p>Register now and bring your classmates along.</p></div>
-          <a class="btn" href="#/" data-scroll="register">Reserve my seat ${icon("arrow")}</a>
+          ${code
+            ? `<div><h2>Your seat is booked.</h2><p>Now bring your classmates. Every friend who joins counts for your rewards and your college.</p></div>
+               <a class="btn" href="#/me/${esc(code)}">Invite friends ${icon("arrow")}</a>`
+            : `<div><h2>Seats are free, but limited to ${C.GOAL}.</h2><p>Reserve yours in under a minute, then bring your classmates along.</p></div>
+               <a class="btn" href="#/register">Reserve my free seat ${icon("arrow")}</a>`}
         </div>
       </section>`;
 
-    $("#regform").addEventListener("submit", onRegister);
-    $("#regform").addEventListener("input", (e) => {
-      if (e.target.getAttribute("aria-invalid") === "true") setFieldError(e.target.name, "");
+    // Animate the preview's score ring
+    requestAnimationFrame(() => {
+      const ring = $("#ring-fg"), num = $("#score-num");
+      if (!ring) return;
+      const target = 78, len = 2 * Math.PI * 50;
+      ring.style.strokeDasharray = len;
+      ring.style.strokeDashoffset = len;
+      requestAnimationFrame(() => { ring.style.strokeDashoffset = len * (1 - target / 100); });
+      const t0 = performance.now();
+      const tick = (t) => {
+        if (!isCurrent(id) || !$("#score-num")) return;
+        const k = Math.min(1, (t - t0) / 1200);
+        num.textContent = Math.round(target * (1 - Math.pow(1 - k, 3)));
+        if (k < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
     });
 
     // Social proof counter
@@ -310,25 +323,18 @@
       requestAnimationFrame(() => { $("#countbar").style.width = Math.max(2, Math.min(100, (lb.total / C.GOAL) * 100)) + "%"; });
     }).catch(() => { if (isCurrent(id)) $("#counter").hidden = true; });
 
-    // Who invited this visitor (shown without blocking the page). Their college also drives the campus experiment.
+    // Campus experiment: the visitor's college comes from an ambassador link or the friend who invited them
     const { ref } = attribution();
     const linkCollege = resolveCollege(safeGet(sessionStorage, "college"));
     if (linkCollege) applyCampus(id, linkCollege);
-    if (ref) {
-      api.me(ref).then((m) => {
-        if (!isCurrent(id) || !m.ok) return;
-        $("#ref-slot").innerHTML = `<div class="ref-note">${icon("users")}<span><b>${esc(m.name)}</b> invited you. Sign up and you'll both move up the leaderboard.</span></div>`;
-        if (!linkCollege) applyCampus(id, m.college);
-      }).catch(() => {});
-    }
+    else if (ref) api.me(ref).then((m) => { if (m.ok) applyCampus(id, m.college); }).catch(() => {});
   }
 
   // Experiment 1 — Campus Identity. Only visitors whose college we know (ambassador link with
   // ?college=…, or a friend's invite) take part. A = standard page, B = "<College> AI Project Sprint".
   function applyCampus(id, college) {
     if (!isCurrent(id) || !college) return;
-    const field = $("#f-college");
-    if (field && !field.value) field.value = college; // prefilled in both versions so only the message differs
+    safeSet(sessionStorage, "campus_college", college); // prefilled on the register page in both versions
     const variant = forced("campus") || window.Analytics.hashVariant(college);
     if (!forced("campus")) {
       safeSet(sessionStorage, "campus_variant", variant);
@@ -351,6 +357,147 @@
     }).catch(() => {});
   }
 
+  // ---------- register (2 steps) ----------
+  function viewRegister(id) {
+    const code = myCode();
+    if (code && !safeGet(sessionStorage, "register_another")) {
+      app.innerHTML = `
+        <div class="narrow"><div class="card state">
+          <div class="success-icon" style="margin:0 auto 12px">${icon("check")}</div>
+          <h1 style="font-size:28px">You're already registered</h1>
+          <p>Your seat for <b>${esc(fmtDate)}</b> is booked on this device.</p>
+          <div class="stack-btns">
+            <a class="btn" href="#/me/${esc(code)}">Go to my invite link ${icon("arrow")}</a>
+            <button class="btn btn-ghost" type="button" id="another">Register a different person</button>
+          </div>
+        </div></div>`;
+      $("#another").onclick = () => { safeSet(sessionStorage, "register_another", "1"); viewRegister(id); };
+      return;
+    }
+
+    const college = safeGet(sessionStorage, "campus_college") || resolveCollege(safeGet(sessionStorage, "college"));
+    app.innerHTML = `
+      <div class="narrow reg">
+        <div class="reg-head">
+          <span class="eyebrow">${icon("calendar")} ${esc(fmtDay)} · ${esc(fmtTime)} IST · Free</span>
+          <h1>Reserve your seat</h1>
+          <p class="muted">Two quick steps. You'll get your personal invite link straight away.</p>
+        </div>
+        <div class="card">
+          <div id="ref-slot"></div>
+          <ol class="stepper" aria-label="Registration steps">
+            <li class="on" data-st="1"><span>1</span>About you</li>
+            <li data-st="2"><span>2</span>Where to reach you</li>
+          </ol>
+          <form id="regform" novalidate>
+            <fieldset class="step-panel" data-panel="1">
+              <legend class="sr-only">About you</legend>
+              <div class="field">
+                <label for="f-name">Full name</label>
+                <input id="f-name" name="name" autocomplete="name" placeholder="e.g. Navadeep Maka" aria-describedby="e-name" />
+                <div class="field-err" id="e-name"></div>
+              </div>
+              <div class="field">
+                <label for="f-college">College</label>
+                <input id="f-college" name="college" list="colleges" autocomplete="organization" placeholder="Start typing your college" value="${esc(college)}" aria-describedby="e-college" />
+                <datalist id="colleges">${COLLEGES.map((c) => `<option value="${esc(c)}">`).join("")}</datalist>
+                <div class="field-err" id="e-college"></div>
+              </div>
+              <div class="row2">
+                <div class="field">
+                  <label for="f-branch">Branch</label>
+                  <select id="f-branch" name="branch" aria-describedby="e-branch"><option value="">Select</option>${BRANCHES.map((b) => `<option>${b}</option>`).join("")}</select>
+                  <div class="field-err" id="e-branch"></div>
+                </div>
+                <div class="field">
+                  <label for="f-year">Year</label>
+                  <select id="f-year" name="year"><option>Final year</option><option>Pre-final year</option><option>Graduated (2025/26)</option><option>Other</option></select>
+                </div>
+              </div>
+              <button class="btn btn-block" style="margin-top:20px" type="button" id="next">Continue ${icon("arrow")}</button>
+            </fieldset>
+
+            <fieldset class="step-panel" data-panel="2" hidden>
+              <legend class="sr-only">Where to reach you</legend>
+              <p class="muted" style="margin:0">We'll send the joining link and reminders here. No spam.</p>
+              <div class="field">
+                <label for="f-email">Email</label>
+                <input id="f-email" name="email" type="email" autocomplete="email" placeholder="you@college.edu" aria-describedby="e-email" />
+                <div class="field-err" id="e-email"></div>
+              </div>
+              <div class="field">
+                <label for="f-phone">WhatsApp number</label>
+                <input id="f-phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="10-digit mobile number" aria-describedby="e-phone" />
+                <div class="field-err" id="e-phone"></div>
+              </div>
+              <div class="form-alert" id="f-alert" role="alert"></div>
+              <div class="step-actions">
+                <button class="btn btn-ghost" type="button" id="back">Back</button>
+                <button class="btn" type="submit" id="f-submit">Reserve my seat ${icon("arrow")}</button>
+              </div>
+            </fieldset>
+          </form>
+        </div>
+        <ul class="reg-perks">
+          <li>${icon("check")} Free, live, 60 minutes</li>
+          <li>${icon("check")} A deployed project for your resume</li>
+          <li>${icon("check")} Your own invite link and rewards</li>
+        </ul>
+      </div>`;
+
+    const form = $("#regform");
+    const goStep = (n) => {
+      form.querySelectorAll("[data-panel]").forEach((p) => (p.hidden = p.dataset.panel !== String(n)));
+      document.querySelectorAll(".stepper li").forEach((li) => {
+        li.classList.toggle("on", +li.dataset.st <= n);
+        li.classList.toggle("done", +li.dataset.st < n);
+      });
+      form.dataset.step = n;
+      $(n === 1 ? "#f-name" : "#f-email").focus();
+    };
+    form.dataset.step = 1;
+    $("#next").onclick = () => { if (checkStep(1)) goStep(2); };
+    $("#back").onclick = () => goStep(1);
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (form.dataset.step === "1") { if (checkStep(1)) goStep(2); return; } // Enter on step 1 = Continue
+      onRegister(goStep);
+    });
+    form.addEventListener("input", (e) => {
+      if (e.target.getAttribute("aria-invalid") === "true") setFieldError(e.target.name, "");
+    });
+    $(college ? "#f-name" : "#f-name").focus();
+
+    const { ref } = attribution();
+    if (ref) {
+      api.me(ref).then((m) => {
+        if (!isCurrent(id) || !m.ok) return;
+        $("#ref-slot").innerHTML = `<div class="ref-note">${icon("users")}<span><b>${esc(m.name)}</b> invited you. Sign up and you'll both move up the leaderboard.</span></div>`;
+        const f = $("#f-college");
+        if (f && !f.value) f.value = m.college;
+      }).catch(() => {});
+    }
+  }
+
+  const STEP_FIELDS = { 1: ["name", "college", "branch"], 2: ["email", "phone"] };
+
+  function readForm() {
+    const d = Object.fromEntries(new FormData($("#regform")));
+    d.name = String(d.name || "").trim();
+    d.email = String(d.email || "").trim().toLowerCase();
+    d.phone = normPhone(d.phone);
+    d.college = normCollege(d.college);
+    return d;
+  }
+
+  function checkStep(n) {
+    const errs = validate(readForm());
+    STEP_FIELDS[n].forEach((k) => setFieldError(k, errs[k] || ""));
+    const bad = STEP_FIELDS[n].find((k) => errs[k]);
+    if (bad) { $(`#regform [name="${bad}"]`).focus(); return false; }
+    return true;
+  }
+
   function setFieldError(name, msg) {
     const input = $(`#regform [name="${name}"]`);
     const out = $(`#e-${name}`);
@@ -368,33 +515,26 @@
     return errs;
   }
 
-  async function onRegister(e) {
-    e.preventDefault();
-    const f = e.target, btn = $("#f-submit"), alertBox = $("#f-alert");
-    const d = Object.fromEntries(new FormData(f));
-    d.name = String(d.name || "").trim();
-    d.email = String(d.email || "").trim().toLowerCase();
-    d.phone = normPhone(d.phone);
-    d.college = normCollege(d.college);
-
-    const errs = validate(d);
-    ["name", "email", "phone", "college", "branch"].forEach((k) => setFieldError(k, errs[k] || ""));
+  async function onRegister(goStep) {
+    const btn = $("#f-submit"), alertBox = $("#f-alert");
+    if (!checkStep(1)) { goStep(1); return; }
+    if (!checkStep(2)) return;
+    const d = readForm();
     alertBox.textContent = "";
-    const firstBad = Object.keys(errs)[0];
-    if (firstBad) { $(`#regform [name="${firstBad}"]`).focus(); return; }
-
     btn.disabled = true;
-    btn.innerHTML = `<span class="spinner"></span> Reserving your seat…`;
+    btn.innerHTML = `<span class="spinner"></span> Reserving…`;
     try {
       const campus = safeGet(sessionStorage, "campus_variant");
       const res = await must(api.register({ ...d, ...attribution(), exp: campus ? { campus } : {} }));
       safeSet(localStorage, "my_code", res.code);
+      safeDel(sessionStorage, "register_another");
+      updateNavCta();
       if (res.existing) toast("You're already registered. Here's your invite link.");
       location.hash = `#/me/${res.code}`;
     } catch (ex) {
       alertBox.textContent = ex.message || "Something went wrong. Please try again.";
       btn.disabled = false;
-      btn.innerHTML = `Register free ${icon("arrow")}`;
+      btn.innerHTML = `Reserve my seat ${icon("arrow")}`;
     }
   }
 
@@ -614,8 +754,8 @@
           </div>
         </div>
         <div class="cta-band">
-          <div><h2>Put your college on the board.</h2><p>Register, then share your invite link with your class group.</p></div>
-          <a class="btn" href="#/" data-scroll="register">Register free ${icon("arrow")}</a>
+          <div><h2>Put your college on the board.</h2><p>${myCode() ? "Share your invite link with your class group." : "Register, then share your invite link with your class group."}</p></div>
+          <a class="btn" href="${myCode() ? `#/me/${esc(myCode())}` : "#/register"}">${myCode() ? "Share my invite link" : "Register free"} ${icon("arrow")}</a>
         </div>
       </section>`;
   }
@@ -827,7 +967,9 @@
     setMenu(false);
     window.Sim.stop();
     document.querySelectorAll("[data-route]").forEach((a) => a.classList.toggle("active", a.dataset.route === page));
-    const titles = { me: "Your invite link", leaderboard: "Leaderboard", simulator: "Campaign Simulator", find: "Find my link", admin: "Organiser dashboard" };
+    if (page !== "register") safeDel(sessionStorage, "register_another");
+    updateNavCta();
+    const titles = { register: "Reserve your seat", me: "Your invite link", leaderboard: "Leaderboard", simulator: "Campaign Simulator", find: "Find my link", admin: "Organiser dashboard" };
     document.title = (titles[page] ? titles[page] + " · " : "") + "Build Your First AI Project in 60 Minutes";
     window.scrollTo(0, 0);
     const run =
@@ -835,6 +977,7 @@
       page === "leaderboard" ? viewLeaderboard(id) :
       page === "simulator" ? window.Sim.view(app) :
       page === "find" ? viewFind(id) :
+      page === "register" ? viewRegister(id) :
       page === "admin" ? viewAdmin(id) :
       viewHome(id);
     Promise.resolve(run).catch((e) => {
@@ -849,12 +992,7 @@
     if (!a) return;
     e.preventDefault();
     setMenu(false);
-    const go = () => {
-      const el = document.getElementById(a.dataset.scroll);
-      if (!el) return;
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-      setTimeout(() => $("#f-name")?.focus({ preventScroll: true }), 450);
-    };
+    const go = () => document.getElementById(a.dataset.scroll)?.scrollIntoView({ behavior: "smooth", block: "start" });
     const onHome = !location.hash || location.hash === "#/" || location.hash === "#";
     if (onHome) go();
     else { location.hash = "#/"; requestAnimationFrame(() => requestAnimationFrame(go)); }
