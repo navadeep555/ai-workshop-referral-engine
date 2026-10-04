@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Build Your First AI Project in 60 Minutes · Free Live Workshop</title>
+  <meta name="description" content="Free 60-minute live workshop for final-year engineering students. Build and deploy a real AI project you can put on your resume tonight." />
+  <meta property="og:title" content="Build Your First AI Project in 60 Minutes — Free" />
+  <meta property="og:description" content="Live workshop for final-year students. Leave with a deployed AI project + GitHub link for your resume." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="demo-banner" hidden>
+    Demo mode — data is stored only in this browser and includes sample registrations.
+    <button id="reset-demo" type="button">Reset demo data</button>
+  </div>
+
+  <header class="nav">
+    <a href="#/" class="brand"><span class="logo">AI</span> 60-Minute AI Workshop</a>
+    <nav>
+      <a href="#/leaderboard">Leaderboard</a>
+      <a href="#/find">Find my link</a>
+      <a href="#/" class="btn btn-sm" data-scroll="register">Register free</a>
+    </nav>
+  </header>
+
+  <main id="app"></main>
+
+  <footer class="foot">
+    <span>Free workshop for final-year engineering students</span>
+    <a href="#/admin">Organiser dashboard</a>
+  </footer>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
