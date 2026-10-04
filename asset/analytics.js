@@ -73,8 +73,6 @@
       name: firstName(me.name), code: me.code, college: me.college,
       referrals: friends.length,
       friends: friends.slice(0, 5).map((r) => firstName(r.name)),
-      // the whole squad sees the captain's version, so friends never land on a different page
-      squad: (captain.exp && captain.exp.squad) || "A",
       squadMembers,
       squadCaptain: firstName(captain.name),
       isCaptain: captainCode === code,
@@ -138,22 +136,20 @@
       const regs = rows.filter((r) => r.exp && r.exp.campus === v).length;
       return { variant: v, views, regs, rate: views ? regs / views : 0 };
     });
-    const ownerVariant = {};
-    rows.forEach((r) => { if (r.exp && r.exp.squad) ownerVariant[r.code] = r.exp.squad; });
-    const squad = ["A", "B"].map((v) => {
-      const members = rows.filter((r) => r.exp && r.exp.squad === v);
-      const sharers = members.filter((r) => r.shared).length;
-      const referrals = rows.filter((r) => r.referredBy && ownerVariant[r.referredBy] === v).length;
-      const n = members.length;
-      return {
-        variant: v, registrants: n, sharers, shares: get(`squad:${v}`, "share"), referrals,
-        shareRate: n ? sharers / n : 0, refsPerRegistrant: n ? referrals / n : 0,
-      };
-    });
+    // Squad Challenge is live for everyone: report how well it spreads
+    const { members } = computeSquads(rows);
+    const squads = Object.values(members);
+    const n = rows.length, sharers = rows.filter((r) => r.shared).length;
+    const referrals = rows.filter((r) => r.referredBy).length;
+    const squad = {
+      students: n, sharers, shareRate: n ? sharers / n : 0, shareClicks: get("squad:B", "share"),
+      referrals, refsPerStudent: n ? referrals / n : 0,
+      squads: squads.length, complete: squads.filter((m) => m.length >= SQUAD_SIZE).length,
+    };
     return {
       minPerGroup: MIN_PER_GROUP,
       campus: { arms: campus, result: compare(campus[0].regs, campus[0].views, campus[1].regs, campus[1].views) },
-      squad: { arms: squad, result: compare(squad[0].sharers, squad[0].registrants, squad[1].sharers, squad[1].registrants) },
+      squad,
     };
   }
 

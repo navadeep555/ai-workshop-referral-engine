@@ -10,7 +10,8 @@ A growth plan and a working referral app to get **500 final-year engineering stu
 - **Personal invite page:** each student gets a unique link, a one-tap WhatsApp or LinkedIn share and rewards for bringing friends
 - **College Challenge leaderboard:** colleges compete on how many students they bring
 - **Organiser dashboard:** sign-ups against the daily plan, a split by channel, the viral ratio and CSV export
-- **A/B tests:** *Campus Identity* (standard page vs "[College] AI Project Sprint") and *Squad Challenge* (invite friends vs a 3-person squad with a shareable card). Results and a 95% confidence verdict appear on the dashboard.
+- **Campus Identity A/B test:** standard page vs "[College] AI Project Sprint". The dashboard shows the results and a 95% confidence verdict.
+- **Squad Challenge (live for everyone):** each student builds a 3-person AI squad with a shareable card. Friends who join through a squad member's link fill that squad.
 - **Sharing:** WhatsApp, Discord (copies the message and opens Discord) and LinkedIn. Set `DISCORD_INVITE` in `asset/config.js` to show a "Join the workshop Discord" button.
 - **Campaign Simulator:** runs the 7-day plan as a live model (every dot is one student, lines show who invited whom). Sliders change each assumption, presets compare "My plan", "Pessimistic" and "No referral loop", and it shows which change would add the most registrations.
 
@@ -26,7 +27,7 @@ A growth plan and a working referral app to get **500 final-year engineering stu
 - Registration page: `/`
 - A student's invite page: `/#/me/<CODE>`
 - Referral link: `/?ref=<CODE>`. Ambassador link: `/?src=amb_ravi&college=amrita-coimbatore` (the `college` part enters visitors into the Campus Identity test)
-- Preview a test version without it being counted: add `?v_campus=B` or `?v_squad=B` (use `=off` to stop previewing)
+- Preview a Campus Identity version without it being counted: add `?v_campus=B` (use `=off` to stop previewing)
 - Leaderboard: `/#/leaderboard`
 - Campaign Simulator: `/#/simulator`
 - Organiser dashboard: `/#/admin`

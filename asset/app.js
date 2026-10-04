@@ -92,8 +92,8 @@
     if (q.get("ref")) safeSet(sessionStorage, "ref", q.get("ref").toUpperCase());
     if (q.get("src")) safeSet(sessionStorage, "src", q.get("src").toLowerCase());
     if (q.get("college")) safeSet(sessionStorage, "college", q.get("college"));
-    // Preview a variant without counting it: ?v_campus=B or ?v_squad=B
-    ["campus", "squad"].forEach((e) => {
+    // Preview a variant without counting it: ?v_campus=B (or =off)
+    ["campus"].forEach((e) => {
       const v = (q.get("v_" + e) || "").toUpperCase();
       if (v === "A" || v === "B") safeSet(sessionStorage, "force_" + e, v);
       if (v === "OFF") safeDel(sessionStorage, "force_" + e);
@@ -432,7 +432,8 @@
                 </div>
                 <div class="field">
                   <label for="f-year">Year</label>
-                  <select id="f-year" name="year"><option>Final year</option><option>Pre-final year</option><option>Graduated (2025/26)</option><option>Other</option></select>
+                  <select id="f-year" name="year" aria-describedby="e-year"><option value="">Select</option><option>Final year</option><option>Pre-final year</option><option>Graduated (2025/26)</option><option>Other</option></select>
+                  <div class="field-err" id="e-year"></div>
                 </div>
               </div>
               <button class="btn btn-block" style="margin-top:20px" type="button" id="next">Continue ${icon("arrow")}</button>
@@ -500,7 +501,7 @@
     }
   }
 
-  const STEP_FIELDS = { 1: ["name", "college", "branch"], 2: ["email", "phone"] };
+  const STEP_FIELDS = { 1: ["name", "college", "branch", "year"], 2: ["email", "phone"] };
 
   function readForm() {
     const d = Object.fromEntries(new FormData($("#regform")));
@@ -533,6 +534,7 @@
     if (!/^[6-9]\d{9}$/.test(d.phone)) errs.phone = "Enter a 10-digit Indian mobile number.";
     if (d.college.length < 3) errs.college = "Please enter your college name.";
     if (!d.branch) errs.branch = "Please select your branch.";
+    if (!d.year) errs.year = "Please select your year.";
     return errs;
   }
 
@@ -560,8 +562,8 @@
   }
 
   // ---------- personal invite page ----------
-  // Experiment 2 — Squad Challenge. A = "invite your friends" + rewards,
-  // B = "build your 3-person AI squad" + a personal share card. Variant is assigned at registration.
+  // Squad Challenge (live for everyone): each student builds a 3-person AI squad and gets a
+  // personal share card. Friends who join through a squad member's link fill that squad.
   async function viewMe(id, code) {
     app.innerHTML = loadingView(6);
     let m;
@@ -575,20 +577,15 @@
         <a class="btn" href="#/find">Find my link</a></div></div>`;
       return;
     }
-    const variant = forced("squad") || m.squad || "A";
-    const squad = variant === "B";
     // Squad: captain first, then members in the order they joined (max 3)
     const members = (m.squadMembers && m.squadMembers.length ? m.squadMembers : [{ name: m.name, you: true, captain: true }]).slice(0, 3);
     const captainName = m.squadCaptain || m.name;
     const left = Math.max(0, 3 - members.length);
     const link = inviteLink(m.code);
-    const msg = squad
-      ? `I'm building an AI Resume Reviewer live on ${fmtDate}. It's free and takes 60 minutes 🚀\n\n` +
-        (left ? `Our AI squad has ${left} spot${left === 1 ? "" : "s"} left. Join us and we'll build it together:\n${link}`
-              : `Join me at the workshop and start your own AI squad:\n${link}`)
-      : `Hey! I just signed up for a FREE live workshop: "${C.WORKSHOP_TITLE}" 🚀\n\n` +
-        `In 60 minutes we build and deploy an AI Resume Reviewer. It's a real project for our resumes before placements.\n` +
-        `📅 ${fmtDate}\n\nRegister with my link (it's free): ${link}`;
+    const msg =
+      `I'm building an AI Resume Reviewer live on ${fmtDate}. It's free and takes 60 minutes 🚀\n\n` +
+      (left ? `Our AI squad has ${left} spot${left === 1 ? "" : "s"} left. Join us and we'll build it together:\n${link}`
+            : `Join me at the workshop and start your own AI squad:\n${link}`);
     const next = C.REWARDS.find((t) => m.referrals < t.at);
     const prevAt = [...C.REWARDS].reverse().find((t) => m.referrals >= t.at)?.at || 0;
     const pct = next ? ((m.referrals - prevAt) / (next.at - prevAt)) * 100 : 100;
@@ -605,7 +602,7 @@
       </div>
       ${C.DISCORD_INVITE ? `<a class="btn btn-ghost btn-block community" target="_blank" rel="noopener" href="${esc(C.DISCORD_INVITE)}">${DC_ICON} Join the workshop Discord</a>` : ""}`;
 
-    const inviteBlock = squad ? `
+    const inviteBlock = `
       <span class="eyebrow">${icon("users")} Squad challenge</span>
       <h2 class="squad-title">${!left ? (m.isCaptain ? "Your AI squad is complete!" : `${esc(captainName)}'s AI squad is complete!`)
         : m.isCaptain ? "Build your 3-person AI squad" : `You're in ${esc(captainName)}'s AI squad`}</h2>
@@ -628,9 +625,6 @@
           <button class="btn btn-ghost" id="dl-card" type="button" data-share>${icon("download")} Download card</button>
         </div>
       </div>
-      ${shareButtons}` : `
-      <h3>Bring your friends</h3>
-      <p class="muted" style="margin-bottom:0">Classmates who join through your link count towards your rewards and push your college up the leaderboard.</p>
       ${shareButtons}`;
 
     app.innerHTML = `
@@ -666,7 +660,7 @@
       </div>`;
 
     // every share action counts towards the experiment's share rate
-    app.querySelectorAll("[data-share]").forEach((el) => el.addEventListener("click", () => track("squad", variant, "share", { code: m.code })));
+    app.querySelectorAll("[data-share]").forEach((el) => el.addEventListener("click", () => track("squad", "B", "share", { code: m.code })));
 
     $("#copy").onclick = async () => {
       try { await navigator.clipboard.writeText(link); }
@@ -686,7 +680,7 @@
       window.open("https://discord.com/channels/@me", "_blank", "noopener");
     };
 
-    if (squad) {
+    {
       const canvas = $("#squad-card");
       const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
       fontsReady.then(() => { if (isCurrent(id)) drawSquadCard(canvas, m, members, link); });
@@ -839,10 +833,10 @@
 
   function experimentsSection(x) {
     if (!x) return "";
-    const c = x.campus.arms, q = x.squad.arms;
+    const c = x.campus.arms, q = x.squad;
     const base = baseUrl();
     return `
-      <div class="section-head" style="margin-top:40px"><h2>Experiments</h2><p>Two A/B tests run during the campaign. Run them on Days 1–3, then switch everyone to the winner for Days 4–7.</p></div>
+      <div class="section-head" style="margin-top:40px"><h2>Experiments</h2><p>Campus Identity runs as an A/B test on Days 1–3, then everyone switches to the winner. The Squad Challenge is live for everyone.</p></div>
       <div class="grid2">
         <div class="card">
           <span class="eyebrow">${icon("users")} Test 1 · Campus Identity</span>
@@ -860,16 +854,14 @@
           </div>
         </div>
         <div class="card">
-          <span class="eyebrow">${icon("gift")} Test 2 · Squad Challenge</span>
-          <p class="muted">Students share more when it's a challenge with friends and a card that represents them, compared with a plain "invite your friends". New students are randomly assigned A or B; friends who join through an invite get the same version and join that squad.</p>
-          <div class="table-scroll"><table class="exp-table">
-            <thead><tr><th>Version</th><th>Students</th><th>Shared</th><th>Friends brought</th><th>Per student</th></tr></thead>
-            <tbody>
-              <tr><td>A · Invite friends</td><td>${q[0].registrants}</td><td>${q[0].sharers} (${pctf(q[0].shareRate)})</td><td>${q[0].referrals}</td><td>${q[0].refsPerRegistrant.toFixed(2)}</td></tr>
-              <tr><td>B · 3-person squad</td><td>${q[1].registrants}</td><td>${q[1].sharers} (${pctf(q[1].shareRate)})</td><td>${q[1].referrals}</td><td>${q[1].refsPerRegistrant.toFixed(2)}</td></tr>
-            </tbody></table></div>
-          ${expVerdict(x.squad.result, q[0].registrants, q[1].registrants, x.minPerGroup)}
-          <p class="note" style="margin:12px 0 0">To preview the squad page, add <code>?v_squad=B</code> before the <code>#</code> on any invite page. Previews are never counted.</p>
+          <span class="eyebrow">${icon("gift")} Live for everyone · Squad Challenge</span>
+          <p class="muted">Every student builds a 3-person AI squad and gets a personal share card. Friends who join through a squad member's link fill that squad.</p>
+          <div class="kpis kpis-mini">
+            <div class="kpi"><small>Students who shared</small><div>${pctf(q.shareRate)}</div><span class="note">${q.sharers} of ${q.students}</span></div>
+            <div class="kpi"><small>Friends per student</small><div>${q.refsPerStudent.toFixed(2)}</div><span class="note">${q.referrals} joined via invites</span></div>
+            <div class="kpi"><small>Squads complete</small><div>${q.complete}</div><span class="note">of ${q.squads} squads</span></div>
+            <div class="kpi"><small>Share clicks</small><div>${q.shareClicks}</div><span class="note">WhatsApp, Discord, card…</span></div>
+          </div>
         </div>
       </div>`;
   }

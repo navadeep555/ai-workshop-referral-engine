@@ -60,6 +60,7 @@ const actions = {
     if (!/^[6-9]\d{9}$/.test(row.phone)) throw new Error("Please enter a valid 10-digit Indian mobile number.");
     if (row.college.length < 3) throw new Error("Please enter your college.");
     if (!row.branch) throw new Error("Please select your branch.");
+    if (!row.year) throw new Error("Please select your year.");
 
     const col = await registrations();
     const findExisting = () => col.findOne({ $or: [{ email: row.email }, { phone: row.phone }] }, { projection: { code: 1 } });
@@ -68,13 +69,10 @@ const actions = {
     if (existing) return { ok: true, existing: true, code: existing.code };
 
     const ref = clean(d.ref, 20).toUpperCase();
-    const inviter = ref ? await col.findOne({ code: ref }, { projection: { exp: 1 } }) : null;
-    row.referredBy = inviter ? ref : "";
-    // Experiments: campus variant comes from the page the student saw. Squad variant is random for
-    // new students, but friends inherit their inviter's version so a squad always sees the same page.
+    row.referredBy = ref && (await col.countDocuments({ code: ref }, { limit: 1 })) ? ref : "";
+    // Experiment: the campus variant comes from the page the student saw
     const campus = d.exp && VARIANTS.includes(d.exp.campus) ? d.exp.campus : null;
-    const squad = inviter ? (inviter.exp && inviter.exp.squad) || "A" : Math.random() < 0.5 ? "A" : "B";
-    row.exp = { squad, ...(campus ? { campus } : {}) };
+    if (campus) row.exp = { campus };
 
     const stem = (row.name.replace(/[^a-z]/gi, "").toUpperCase() + "XXXX").slice(0, 4);
     for (let i = 0; i < 20; i++) {
@@ -118,13 +116,11 @@ const actions = {
     const allowed = Object.prototype.hasOwnProperty.call(TRACKABLE, exp) ? TRACKABLE[exp] : [];
     if (!allowed.includes(event)) throw new Error("Unknown event");
     if (exp === "squad") {
-      // A share always counts under the version this registrant was assigned, whatever the browser says
+      // Squad Challenge is live for everyone; the first share marks the student as a "sharer"
+      variant = "B";
       const col = await registrations();
-      const owner = await col.findOne({ code: clean(d.code, 20).toUpperCase() }, { projection: { exp: 1 } });
-      if (!owner) throw new Error("Unknown event");
-      variant = (owner.exp && owner.exp.squad) || "A";
-      // the first share marks the registrant as a "sharer" (share rate = sharers ÷ registrants)
-      await col.updateOne({ _id: owner._id, shared: { $ne: true } }, { $set: { shared: true } });
+      const res = await col.updateOne({ code: clean(d.code, 20).toUpperCase(), shared: { $ne: true } }, { $set: { shared: true } });
+      if (!res.matchedCount && !(await col.countDocuments({ code: clean(d.code, 20).toUpperCase() }, { limit: 1 }))) throw new Error("Unknown event");
     }
     if (!VARIANTS.includes(variant)) throw new Error("Unknown event");
     await (await counters()).updateOne({ _id: `${exp}:${variant}` }, { $inc: { [event]: 1 } }, { upsert: true });
