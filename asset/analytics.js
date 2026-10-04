@@ -5,6 +5,9 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
+  // Project Curiosity: the projects students can pick (labels live in app.js)
+  const PROJECTS = ["resume", "study", "chatbot", "stocks"];
+
   const cap = (w) => (w ? w[0].toUpperCase() + w.slice(1) : w);
   const firstName = (n) => cap(String(n || "").trim().split(/\s+/)[0]) || "Friend";
   const shortName = (n) => {
@@ -77,6 +80,9 @@
       squadCaptain: firstName(captain.name),
       isCaptain: captainCode === code,
       invitedBy: me.referredBy && byCode[me.referredBy] ? firstName(byCode[me.referredBy].name) : "",
+      passport: (me.exp && me.exp.passport) || "",
+      interest: me.interest || "",
+      branch: me.branch || "",
       collegeCount: colleges[me.college] || 0,
       collegeRank: ranked.findIndex(([c]) => c === me.college) + 1,
       total: rows.length,
@@ -146,8 +152,31 @@
       referrals, refsPerStudent: n ? referrals / n : 0,
       squads: squads.length, complete: squads.filter((m) => m.length >= SQUAD_SIZE).length,
     };
+    // Project Curiosity: card clicks vs home-page visitors, and registrations per picked project
+    const projectViews = get("projects:all", "view");
+    const projects = {
+      views: projectViews,
+      items: PROJECTS.map((id) => {
+        const clicks = get(`projects:${id}`, "click");
+        const regs = rows.filter((r) => r.interest === id).length;
+        return { id, clicks, ctr: projectViews ? clicks / projectViews : 0, regs, clickToReg: clicks ? regs / clicks : 0 };
+      }),
+      picked: rows.filter((r) => r.interest).length,
+    };
+
+    // Instant Reward: does the AI Project Passport bring students back? (A = basic confirmation)
+    const passportArms = ["A", "B"].map((v) => {
+      const group = rows.filter((r) => r.exp && r.exp.passport === v);
+      const n = group.length, returned = group.filter((r) => r.returned).length;
+      return { variant: v, students: n, returned, returnRate: n ? returned / n : 0,
+        used: group.filter((r) => r.passportUsed).length, useRate: n ? group.filter((r) => r.passportUsed).length / n : 0 };
+    });
+    const passport = { arms: passportArms, result: compare(passportArms[0].returned, passportArms[0].students, passportArms[1].returned, passportArms[1].students) };
+
     return {
       minPerGroup: MIN_PER_GROUP,
+      projects,
+      passport,
       campus: { arms: campus, result: compare(campus[0].regs, campus[0].views, campus[1].regs, campus[1].views) },
       squad,
     };
@@ -162,5 +191,5 @@
     return { college: key, count: counts[key] || 0, rank: idx >= 0 ? idx + 1 : ranked.length + 1, colleges: ranked.length };
   }
 
-  return { firstName, shortName, dayKey, sourceOf, computeLeaderboard, computeMe, computeStats, hashVariant, computeExperiments, collegeStanding };
+  return { PROJECTS, firstName, shortName, dayKey, sourceOf, computeLeaderboard, computeMe, computeStats, hashVariant, computeExperiments, collegeStanding };
 });

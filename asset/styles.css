@@ -484,3 +484,39 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .kpis-mini { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 12px 0 0; }
 .kpis-mini .kpi div { font-size: 24px; }
 .kpis-mini .kpi .note { font-size: 12px; }
+
+/* ============ Project Curiosity ============ */
+.projects { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.project { display: grid; align-content: start; gap: 10px; text-align: left; font: inherit; color: inherit; cursor: pointer; position: relative; transition: transform .15s, box-shadow .15s, border-color .15s; }
+.project:hover { transform: translateY(-3px); border-color: #c7d2fe; box-shadow: 0 16px 36px rgba(15, 23, 42, .1); }
+.project b { font-size: 17px; }
+.project-desc { color: var(--muted); font-size: 14px; }
+.project-tag { justify-self: start; font-size: 11px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); padding: 4px 8px; border-radius: 6px; }
+.project.now { border: 2px solid var(--brand); }
+.project.now .project-tag { background: var(--brand); color: #fff; }
+.project-cta { display: inline-flex; align-items: center; gap: 6px; color: var(--brand); font-weight: 700; font-size: 14px; margin-top: 4px; }
+.pick-note { display: flex; gap: 10px; align-items: flex-start; background: var(--brand-soft); color: #3730a3; border-radius: 12px; padding: 12px 14px; font-size: 14px; margin: 0 0 12px; }
+.optional { font-weight: 600; color: var(--muted); font-size: 12px; margin-left: 4px; }
+
+/* ============ AI Project Passport ============ */
+.passport { margin-top: 20px; border-radius: 16px; padding: 20px; color: #eef0ff; background: linear-gradient(150deg, #11163a, #2a1d72); box-shadow: var(--shadow); }
+.passport-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.passport-badge { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: linear-gradient(135deg, #f59e0b, #f97316); color: #fff; }
+.passport-kicker { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fcd34d; }
+.passport h2 { margin: 2px 0 0; font-size: 22px; color: #fff; }
+.passport-rec { display: grid; gap: 4px; padding: 14px 16px; border-radius: 12px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); }
+.passport-rec small { font-size: 12px; font-weight: 700; color: #c4b5fd; text-transform: uppercase; letter-spacing: .04em; }
+.passport-rec b { font-size: 18px; color: #fff; }
+.passport-rec span { font-size: 14px; color: #c9cdeb; }
+.passport-progress { margin: 16px 0 8px; font-size: 14px; color: #c9cdeb; }
+.passport-progress b { color: #6ee7b7; font-size: 16px; }
+.checklist { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 8px; }
+.checklist label { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: rgba(255,255,255,.06); cursor: pointer; margin: 0; color: #fff; font-weight: 400; }
+.checklist input { width: 20px; min-height: 0; height: 20px; margin-top: 2px; accent-color: #10b981; flex: none; }
+.checklist b { display: block; font-size: 15px; }
+.checklist small { display: block; font-size: 13px; color: #aab0d6; }
+.checklist a { color: #a5b4fc; font-weight: 700; }
+.checklist input:checked + span b { text-decoration: line-through; color: #9ae6c4; }
+.passport .btn-ghost { background: rgba(255,255,255,.1); color: #fff; border-color: rgba(255,255,255,.2); }
+@media (max-width: 960px) { .projects { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .projects { grid-template-columns: 1fr; } }

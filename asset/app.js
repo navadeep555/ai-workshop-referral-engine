@@ -13,6 +13,15 @@
   // Daily targets from the growth plan (sum = 500). Admin chart compares against these.
   const DAILY_TARGET = [40, 60, 70, 80, 90, 90, 70];
 
+  // Project Curiosity: what students can pick. Only "resume" is built in this workshop;
+  // the others are honest votes for the next one.
+  const PROJECT_INFO = {
+    resume: { title: "AI Resume Reviewer", desc: "Upload a resume and get a score with instant fixes.", tag: "This workshop · live Sunday", icon: "briefcase", now: true },
+    study: { title: "AI Study Planner", desc: "Turns your syllabus and exam dates into a day-by-day plan.", tag: "Next workshop · vote", icon: "calendar" },
+    chatbot: { title: "College Help Chatbot", desc: "Answers questions about your college from its own documents.", tag: "Next workshop · vote", icon: "users" },
+    stocks: { title: "Stock Trend Explainer", desc: "Reads market news and explains what's moving a stock.", tag: "Next workshop · vote", icon: "chart" },
+  };
+
   const BRANCHES = ["CSE", "CSE (AI/ML)", "CSE (Data Science)", "IT", "ECE", "EEE", "Mechanical", "Civil", "Other"];
   // Suggestions for the college field (Telangana, Andhra Pradesh, Tamil Nadu); students can type any college
   const COLLEGES = [
@@ -92,8 +101,8 @@
     if (q.get("ref")) safeSet(sessionStorage, "ref", q.get("ref").toUpperCase());
     if (q.get("src")) safeSet(sessionStorage, "src", q.get("src").toLowerCase());
     if (q.get("college")) safeSet(sessionStorage, "college", q.get("college"));
-    // Preview a variant without counting it: ?v_campus=B (or =off)
-    ["campus"].forEach((e) => {
+    // Preview a variant without counting it: ?v_campus=B or ?v_passport=B (=off to stop)
+    ["campus", "passport"].forEach((e) => {
       const v = (q.get("v_" + e) || "").toUpperCase();
       if (v === "A" || v === "B") safeSet(sessionStorage, "force_" + e, v);
       if (v === "OFF") safeDel(sessionStorage, "force_" + e);
@@ -266,6 +275,21 @@
         </section>
       </div>
 
+      <section class="block" id="projects">
+        <div class="section-head"><h2>Pick the AI project you'd love to build</h2>
+          <p>On Sunday we build the AI Resume Reviewer together. Your pick also votes for the next workshop.</p></div>
+        <div class="projects">
+          ${Object.entries(PROJECT_INFO).map(([pid, p]) => `
+            <button type="button" class="card project${p.now ? " now" : ""}" data-project="${pid}">
+              <span class="project-tag">${esc(p.tag)}</span>
+              <span class="icon-tile">${icon(p.icon)}</span>
+              <b>${esc(p.title)}</b>
+              <span class="project-desc">${esc(p.desc)}</span>
+              <span class="project-cta">${p.now ? "Build this on Sunday" : "I want this next"} ${icon("arrow")}</span>
+            </button>`).join("")}
+        </div>
+      </section>
+
       <section class="block">
         <div class="section-head"><h2>How it works</h2><p>Four steps from sign-up to a project on your resume.</p></div>
         <div class="steps">
@@ -314,6 +338,16 @@
                <a class="btn" href="#/register">Reserve my free seat ${icon("arrow")}</a>`}
         </div>
       </section>`;
+
+    // Experiment — Project Curiosity: count visitors once per session, then clicks per project card
+    if (!safeGet(sessionStorage, "projects_seen")) { safeSet(sessionStorage, "projects_seen", "1"); track("projects", "all", "view"); }
+    app.querySelectorAll("[data-project]").forEach((card) => card.addEventListener("click", () => {
+      const pid = card.dataset.project;
+      track("projects", pid, "click");
+      safeSet(sessionStorage, "interest", pid);
+      location.hash = myCode() ? `#/me/${myCode()}` : "#/register";
+      if (myCode()) toast(`Thanks! Your vote for ${PROJECT_INFO[pid].title} is counted.`);
+    }));
 
     // Animate the preview's score ring
     requestAnimationFrame(() => {
@@ -397,6 +431,7 @@
     }
 
     const college = safeGet(sessionStorage, "campus_college") || resolveCollege(safeGet(sessionStorage, "college"));
+    const picked = safeGet(sessionStorage, "interest") || "";
     app.innerHTML = `
       <div class="narrow reg">
         <div class="reg-head">
@@ -406,6 +441,9 @@
         </div>
         <div class="card">
           <div id="ref-slot"></div>
+          ${picked && PROJECT_INFO[picked] ? `<div class="pick-note">${icon(PROJECT_INFO[picked].icon)}<span>${PROJECT_INFO[picked].now
+            ? `Great pick: <b>${esc(PROJECT_INFO[picked].title)}</b> is exactly what we build live on Sunday.`
+            : `You voted for <b>${esc(PROJECT_INFO[picked].title)}</b>. On Sunday you'll build the AI Resume Reviewer, which uses the same skills.`}</span></div>` : ""}
           <ol class="stepper" aria-label="Registration steps">
             <li class="on" data-st="1"><span>1</span>About you</li>
             <li data-st="2"><span>2</span>Where to reach you</li>
@@ -435,6 +473,13 @@
                   <select id="f-year" name="year" aria-describedby="e-year"><option value="">Select</option><option>Final year</option><option>Pre-final year</option><option>Graduated (2025/26)</option><option>Other</option></select>
                   <div class="field-err" id="e-year"></div>
                 </div>
+              </div>
+              <div class="field">
+                <label for="f-interest">Which AI project excites you most? <span class="optional">Optional</span></label>
+                <select id="f-interest" name="interest">
+                  <option value="">Select</option>
+                  ${Object.entries(PROJECT_INFO).map(([pid, p]) => `<option value="${pid}"${pid === picked ? " selected" : ""}>${esc(p.title)}${p.now ? " (this workshop)" : ""}</option>`).join("")}
+                </select>
               </div>
               <button class="btn btn-block" style="margin-top:20px" type="button" id="next">Continue ${icon("arrow")}</button>
             </fieldset>
@@ -578,6 +623,8 @@
       return;
     }
     // Squad: captain first, then members in the order they joined (max 3)
+    // Experiment — Instant Reward: A = basic confirmation, B = AI Project Passport (assigned at registration)
+    const showPassport = (forced("passport") || m.passport) === "B";
     const members = (m.squadMembers && m.squadMembers.length ? m.squadMembers : [{ name: m.name, you: true, captain: true }]).slice(0, 3);
     const captainName = m.squadCaptain || m.name;
     const left = Math.max(0, 3 - members.length);
@@ -641,6 +688,8 @@
             <div class="stat"><small>Your college rank</small><b>#${m.collegeRank}</b><span>${esc(m.college)} · ${m.collegeCount} registered</span></div>
           </div>
 
+          ${showPassport ? passportBlock(m) : ""}
+
           <hr class="divider" />
           ${inviteBlock}
 
@@ -658,6 +707,15 @@
           <p class="note" style="margin:20px 0 0">Your code is <b>${esc(m.code)}</b>. Bookmark this page to track your invites, or <a href="#/leaderboard">see the leaderboard</a>.</p>
         </div>
       </div>`;
+
+    if (showPassport) wirePassport(id, m);
+
+    // Experiment — Instant Reward: did this student come back later? (counted once, for A and B)
+    if (code === myCode() && !forced("passport")) {
+      const key = "visit_" + code, first = +(safeGet(localStorage, key) || 0);
+      if (!first) safeSet(localStorage, key, String(Date.now()));
+      else if (Date.now() - first > RETURN_AFTER_MS) track("passport", "", "return", { code });
+    }
 
     // every share action counts towards the experiment's share rate
     app.querySelectorAll("[data-share]").forEach((el) => el.addEventListener("click", () => track("squad", "B", "share", { code: m.code })));
@@ -701,6 +759,92 @@
         }
       };
     }
+  }
+
+  // ---------- AI Project Passport (Instant Reward, version B) ----------
+  const RETURN_AFTER_MS = 3 * 3600e3; // a visit 3+ hours after registering counts as "came back"
+  const PASSPORT_STEPS = [
+    { id: "github", title: "Create a free GitHub account", hint: "You'll push your project here.", link: "https://github.com/signup" },
+    { id: "apikey", title: "Get a free AI API key", hint: "Google AI Studio gives one in 2 minutes.", link: "https://aistudio.google.com/apikey" },
+    { id: "resume", title: "Keep your resume PDF handy", hint: "You'll test your app on it live." },
+    { id: "early", title: "Join 5 minutes early on a laptop", hint: `${fmtDay}, ${fmtTime} IST · Chrome works best.` },
+  ];
+  const passportDone = (code) => { try { return JSON.parse(safeGet(localStorage, "passport_" + code) || "[]"); } catch { return []; } };
+
+  function passportRecommendation(m) {
+    const p = PROJECT_INFO[m.interest];
+    if (!p || p.now) return { title: "AI Resume Reviewer", why: "You'll build and deploy it live on Sunday, then add it to your resume the same night." };
+    return { title: p.title, why: `You picked this one. Sunday's AI Resume Reviewer teaches the same skills (prompting, an LLM API, deploying), so you can build ${p.title} right after.` };
+  }
+
+  function passportBlock(m) {
+    const done = passportDone(m.code), rec = passportRecommendation(m);
+    return `
+      <section class="passport" aria-label="Your AI Project Passport">
+        <div class="passport-head">
+          <span class="passport-badge">${icon("gift")}</span>
+          <div><span class="passport-kicker">Instant reward unlocked</span><h2>Your AI Project Passport</h2></div>
+        </div>
+        <div class="passport-rec">
+          <small>Recommended for you${m.branch ? ` · ${esc(m.branch)}` : ""}</small>
+          <b>${esc(rec.title)}</b>
+          <span>${esc(rec.why)}</span>
+        </div>
+        <div class="passport-progress"><b id="pp-count">${done.length}/${PASSPORT_STEPS.length}</b> ready for Sunday</div>
+        <ul class="checklist">
+          ${PASSPORT_STEPS.map((st) => `
+            <li><label>
+              <input type="checkbox" data-step="${st.id}"${done.includes(st.id) ? " checked" : ""} />
+              <span><b>${esc(st.title)}</b><small>${esc(st.hint)}${st.link ? ` <a href="${st.link}" target="_blank" rel="noopener">Open ↗</a>` : ""}</small></span>
+            </label></li>`).join("")}
+        </ul>
+        <button class="btn btn-ghost btn-block" type="button" id="dl-passport">${icon("download")} Download my Passport</button>
+      </section>`;
+  }
+
+  function wirePassport(id, m) {
+    const used = () => track("passport", "", "use", { code: m.code });
+    app.querySelectorAll(".checklist input").forEach((box) => box.addEventListener("change", () => {
+      const done = [...app.querySelectorAll(".checklist input:checked")].map((b) => b.dataset.step);
+      safeSet(localStorage, "passport_" + m.code, JSON.stringify(done));
+      $("#pp-count").textContent = `${done.length}/${PASSPORT_STEPS.length}`;
+      if (done.length === PASSPORT_STEPS.length) toast("You're all set for Sunday!");
+      used();
+    }));
+    $("#dl-passport").onclick = () => {
+      used();
+      const canvas = document.createElement("canvas");
+      canvas.width = 1080; canvas.height = 1350;
+      drawPassport(canvas, m, passportDone(m.code), passportRecommendation(m));
+      canvas.toBlob((blob) => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = `ai-project-passport-${m.code}.png`; a.click();
+      }, "image/png");
+    };
+  }
+
+  function drawPassport(canvas, m, done, rec) {
+    const ctx = canvas.getContext("2d"), W = canvas.width, H = canvas.height;
+    const F = "'Plus Jakarta Sans', 'Segoe UI', sans-serif";
+    const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, "#0b1020"); g.addColorStop(1, "#1b1650");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#a5b4fc"; ctx.font = `700 34px ${F}`; ctx.fillText("AI PROJECT PASSPORT", 80, 130);
+    ctx.fillStyle = "#fff"; ctx.font = `800 88px ${F}`; ctx.fillText(m.name, 80, 240);
+    ctx.fillStyle = "#b9bedb"; ctx.font = `600 34px ${F}`;
+    ctx.fillText(`${shortCollege(m.college)} · ${fmtDay}, ${fmtTime} IST`, 80, 300);
+    ctx.fillStyle = "rgba(255,255,255,.08)"; ctx.fillRect(80, 350, W - 160, 200);
+    ctx.fillStyle = "#c4b5fd"; ctx.font = `700 28px ${F}`; ctx.fillText("RECOMMENDED PROJECT", 120, 410);
+    ctx.fillStyle = "#fff"; ctx.font = `800 54px ${F}`; ctx.fillText(rec.title, 120, 485);
+    ctx.font = `700 34px ${F}`; ctx.fillStyle = "#e4e6ff"; ctx.fillText("Before Sunday", 80, 640);
+    PASSPORT_STEPS.forEach((st, i) => {
+      const y = 720 + i * 120, ok = done.includes(st.id);
+      ctx.beginPath(); ctx.arc(110, y - 12, 26, 0, Math.PI * 2);
+      ctx.fillStyle = ok ? "#10b981" : "rgba(255,255,255,.12)"; ctx.fill();
+      if (ok) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(97, y - 12); ctx.lineTo(107, y - 2); ctx.lineTo(125, y - 24); ctx.stroke(); }
+      ctx.fillStyle = "#fff"; ctx.font = `700 36px ${F}`; ctx.fillText(st.title, 160, y);
+      ctx.fillStyle = "#9aa0c7"; ctx.font = `500 26px ${F}`; ctx.fillText(st.hint, 160, y + 38);
+    });
+    ctx.fillStyle = "#a5b4fc"; ctx.font = `700 30px ${F}`; ctx.fillText(`Code ${m.code} · 60-Minute AI Workshop`, 80, H - 80);
   }
 
   // 1080×1350 share card (WhatsApp Status / Instagram friendly)
@@ -833,10 +977,10 @@
 
   function experimentsSection(x) {
     if (!x) return "";
-    const c = x.campus.arms, q = x.squad;
+    const c = x.campus.arms, q = x.squad, p4 = x.passport.arms;
     const base = baseUrl();
     return `
-      <div class="section-head" style="margin-top:40px"><h2>Experiments</h2><p>Campus Identity runs as an A/B test on Days 1–3, then everyone switches to the winner. The Squad Challenge is live for everyone.</p></div>
+      <div class="section-head" style="margin-top:40px"><h2>Experiments</h2><p>Two A/B tests (Campus Identity for visitors, Instant Reward for registrants) run on Days 1–3, then everyone switches to the winners. Project Curiosity is measured on every visitor, and the Squad Challenge is live for everyone.</p></div>
       <div class="grid2">
         <div class="card">
           <span class="eyebrow">${icon("users")} Test 1 · Campus Identity</span>
@@ -862,6 +1006,35 @@
             <div class="kpi"><small>Squads complete</small><div>${q.complete}</div><span class="note">of ${q.squads} squads</span></div>
             <div class="kpi"><small>Share clicks</small><div>${q.shareClicks}</div><span class="note">WhatsApp, Discord, card…</span></div>
           </div>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:16px">
+        <div class="card">
+          <span class="eyebrow">${icon("spark")} Test 3 · Project Curiosity</span>
+          <p class="muted">Students register more when they first see a project they want to build. Every home-page visitor sees all four project cards, so this compares projects without splitting traffic.</p>
+          <div class="table-scroll"><table class="exp-table">
+            <thead><tr><th>Project</th><th>Card clicks</th><th>Click rate</th><th>Picked at sign-up</th><th>Click → sign-up</th></tr></thead>
+            <tbody>
+              ${[...x.projects.items].sort((p1, p2) => p2.clicks - p1.clicks).map((it) => `<tr><td>${esc(PROJECT_INFO[it.id].title)}</td><td>${it.clicks}</td><td>${pctf(it.ctr)}</td><td>${it.regs}</td><td>${it.clicks ? pctf(it.clickToReg) : "–"}</td></tr>`).join("")}
+            </tbody></table></div>
+          <div class="exp-result">${(() => {
+            const top = [...x.projects.items].sort((p1, p2) => p2.clicks - p1.clicks)[0];
+            return x.projects.views < 50
+              ? `Not enough visitors yet (${x.projects.views} home-page visitors). Check again after 50.`
+              : `<b>${esc(PROJECT_INFO[top.id].title)}</b> gets the most clicks (${pctf(top.ctr)} of ${x.projects.views} visitors). Use it in ads and as the next workshop's project.`;
+          })()}</div>
+        </div>
+        <div class="card">
+          <span class="eyebrow">${icon("gift")} Test 4 · Instant Reward</span>
+          <p class="muted">An instant reward after sign-up makes registering feel worthwhile, so more students come back. Each registrant is randomly assigned. A gets the basic confirmation, B gets the AI Project Passport.</p>
+          <div class="table-scroll"><table class="exp-table">
+            <thead><tr><th>Version</th><th>Students</th><th>Came back</th><th>Used Passport</th></tr></thead>
+            <tbody>
+              <tr><td>A · Basic confirmation</td><td>${p4[0].students}</td><td>${p4[0].returned} (${pctf(p4[0].returnRate)})</td><td>–</td></tr>
+              <tr><td>B · AI Project Passport</td><td>${p4[1].students}</td><td>${p4[1].returned} (${pctf(p4[1].returnRate)})</td><td>${p4[1].used} (${pctf(p4[1].useRate)})</td></tr>
+            </tbody></table></div>
+          ${expVerdict(x.passport.result, p4[0].students, p4[1].students, x.minPerGroup)}
+          <p class="note" style="margin:12px 0 0">"Came back" means the student reopened their page 3+ hours after registering. Preview the Passport by adding <code>?v_passport=B</code> before the <code>#</code> on an invite page.</p>
         </div>
       </div>`;
   }

@@ -29,7 +29,14 @@ const registrations = async () => (await database()).collection("registrations")
 const counters = async () => (await database()).collection("experiments");
 
 const VARIANTS = ["A", "B"];
-const TRACKABLE = { campus: ["view"], squad: ["share"] };
+const PROJECTS = A.PROJECTS;
+// What each experiment may record. "Per-student" experiments mark the registration itself once.
+const EXPERIMENTS = {
+  campus: { variants: VARIANTS, events: ["view"] },
+  squad: { variants: ["B"], events: ["share"], perStudent: { share: "shared" } },
+  projects: { variants: [...PROJECTS, "all"], events: ["view", "click"] },
+  passport: { variants: VARIANTS, events: ["use", "return"], perStudent: { use: "passportUsed", return: "returned" } },
+};
 
 async function allRows() {
   const col = await registrations();
@@ -70,9 +77,12 @@ const actions = {
 
     const ref = clean(d.ref, 20).toUpperCase();
     row.referredBy = ref && (await col.countDocuments({ code: ref }, { limit: 1 })) ? ref : "";
-    // Experiment: the campus variant comes from the page the student saw
+    // Experiments: the campus variant comes from the page the student saw; the Passport
+    // (instant reward) variant is assigned here. The project pick is the student's own choice.
     const campus = d.exp && VARIANTS.includes(d.exp.campus) ? d.exp.campus : null;
-    if (campus) row.exp = { campus };
+    row.exp = { passport: Math.random() < 0.5 ? "A" : "B", ...(campus ? { campus } : {}) };
+    const interest = clean(d.interest, 20);
+    row.interest = PROJECTS.includes(interest) ? interest : "";
 
     const stem = (row.name.replace(/[^a-z]/gi, "").toUpperCase() + "XXXX").slice(0, 4);
     for (let i = 0; i < 20; i++) {
@@ -112,17 +122,21 @@ const actions = {
 
   async track(d) {
     const exp = clean(d.exp, 20), event = clean(d.event, 20);
-    let variant = clean(d.variant, 2);
-    const allowed = Object.prototype.hasOwnProperty.call(TRACKABLE, exp) ? TRACKABLE[exp] : [];
-    if (!allowed.includes(event)) throw new Error("Unknown event");
-    if (exp === "squad") {
-      // Squad Challenge is live for everyone; the first share marks the student as a "sharer"
-      variant = "B";
+    let variant = clean(d.variant, 20);
+    const def = Object.prototype.hasOwnProperty.call(EXPERIMENTS, exp) ? EXPERIMENTS[exp] : null;
+    if (!def || !def.events.includes(event)) throw new Error("Unknown event");
+    if (def.perStudent) {
+      // Counted once per student, under the version that student was actually assigned
       const col = await registrations();
-      const res = await col.updateOne({ code: clean(d.code, 20).toUpperCase(), shared: { $ne: true } }, { $set: { shared: true } });
-      if (!res.matchedCount && !(await col.countDocuments({ code: clean(d.code, 20).toUpperCase() }, { limit: 1 }))) throw new Error("Unknown event");
+      const owner = await col.findOne({ code: clean(d.code, 20).toUpperCase() }, { projection: { exp: 1 } });
+      if (!owner) throw new Error("Unknown event");
+      variant = exp === "squad" ? "B" : owner.exp && owner.exp[exp];
+      if (!def.variants.includes(variant)) throw new Error("Unknown event"); // registered before this test
+      const field = def.perStudent[event];
+      const res = await col.updateOne({ _id: owner._id, [field]: { $ne: true } }, { $set: { [field]: true } });
+      if (exp === "passport" && !res.modifiedCount) return { ok: true }; // already counted
     }
-    if (!VARIANTS.includes(variant)) throw new Error("Unknown event");
+    if (!def.variants.includes(variant)) throw new Error("Unknown event");
     await (await counters()).updateOne({ _id: `${exp}:${variant}` }, { $inc: { [event]: 1 } }, { upsert: true });
     return { ok: true };
   },
