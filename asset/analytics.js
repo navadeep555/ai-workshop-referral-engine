@@ -159,7 +159,7 @@
       items: PROJECTS.map((id) => {
         const clicks = get(`projects:${id}`, "click");
         const regs = rows.filter((r) => r.interest === id).length;
-        return { id, clicks, ctr: projectViews ? clicks / projectViews : 0, regs, clickToReg: clicks ? regs / clicks : 0 };
+        return { id, clicks, votes: get(`projects:${id}`, "vote"), ctr: projectViews ? clicks / projectViews : 0, regs, clickToReg: clicks ? regs / clicks : 0 };
       }),
       picked: rows.filter((r) => r.interest).length,
     };

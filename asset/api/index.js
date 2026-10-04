@@ -34,7 +34,7 @@ const PROJECTS = A.PROJECTS;
 const EXPERIMENTS = {
   campus: { variants: VARIANTS, events: ["view"] },
   squad: { variants: ["B"], events: ["share"], perStudent: { share: "shared" } },
-  projects: { variants: [...PROJECTS, "all"], events: ["view", "click"] },
+  projects: { variants: [...PROJECTS, "all"], events: ["view", "click", "vote"] },
   passport: { variants: VARIANTS, events: ["use", "return"], perStudent: { use: "passportUsed", return: "returned" } },
 };
 
@@ -139,6 +139,14 @@ const actions = {
     if (!def.variants.includes(variant)) throw new Error("Unknown event");
     await (await counters()).updateOne({ _id: `${exp}:${variant}` }, { $inc: { [event]: 1 } }, { upsert: true });
     return { ok: true };
+  },
+
+  // Public: how many students voted for each project (shown as social proof on project pages)
+  async projectVotes() {
+    const docs = await (await counters()).find({ _id: { $in: PROJECTS.map((id) => `projects:${id}`) } }).toArray();
+    const votes = Object.fromEntries(PROJECTS.map((id) => [id, 0]));
+    docs.forEach((doc) => (votes[doc._id.split(":")[1]] = doc.vote || 0));
+    return { ok: true, votes };
   },
 
   async leaderboard() {

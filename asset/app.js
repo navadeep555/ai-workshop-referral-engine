@@ -135,6 +135,7 @@
     me: (code) => call("me", { code }),
     leaderboard: () => call("leaderboard"),
     college: (name) => call("college", { name }),
+    projectVotes: () => call("projectVotes"),
     stats: (key) => call("stats", { key }),
     export: (key) => call("export", { key }),
   };
@@ -285,7 +286,7 @@
               <span class="icon-tile">${icon(p.icon)}</span>
               <b>${esc(p.title)}</b>
               <span class="project-desc">${esc(p.desc)}</span>
-              <span class="project-cta">${p.now ? "Build this on Sunday" : "I want this next"} ${icon("arrow")}</span>
+              <span class="project-cta">View project ${icon("arrow")}</span>
             </button>`).join("")}
         </div>
       </section>
@@ -342,11 +343,8 @@
     // Experiment — Project Curiosity: count visitors once per session, then clicks per project card
     if (!safeGet(sessionStorage, "projects_seen")) { safeSet(sessionStorage, "projects_seen", "1"); track("projects", "all", "view"); }
     app.querySelectorAll("[data-project]").forEach((card) => card.addEventListener("click", () => {
-      const pid = card.dataset.project;
-      track("projects", pid, "click");
-      safeSet(sessionStorage, "interest", pid);
-      location.hash = myCode() ? `#/me/${myCode()}` : "#/register";
-      if (myCode()) toast(`Thanks! Your vote for ${PROJECT_INFO[pid].title} is counted.`);
+      track("projects", card.dataset.project, "click");
+      location.hash = `#/project/${card.dataset.project}`;
     }));
 
     // Animate the preview's score ring
@@ -410,6 +408,197 @@
       $("#countbar").style.width = Math.max(2, Math.min(100, (c.count / 50) * 100)) + "%"; // campus goal: 50
       $("#counter").dataset.campus = "1";
     }).catch(() => {});
+  }
+
+  // ---------- project pages (Project Curiosity) ----------
+  const PROJECT_PAGES = {
+    resume: {
+      tagline: "Upload a resume, get a score out of 100 and specific fixes in seconds.",
+      url: "your-name-resume-ai.vercel.app",
+      build: [
+        "Upload a resume PDF and extract its text",
+        "Send it to an LLM with a recruiter-style prompt",
+        "Show a score, strengths and the top 3 fixes",
+        "Deploy it on a public link you can share",
+      ],
+      flow: [["Resume PDF", "form"], ["LLM with a recruiter prompt", "spark"], ["Score + fixes", "check"]],
+      stack: ["Python", "Gemini API", "Prompt engineering", "Streamlit", "GitHub", "Deploy"],
+      resume: "Built and deployed an AI resume reviewer that scores resumes and suggests fixes using an LLM API.",
+      plan: [["0–10", "How LLM apps work, with no maths"], ["10–35", "Build: PDF → prompt → feedback"], ["35–50", "Deploy it live and push to GitHub"], ["50–60", "Make it yours, then Q&A"]],
+      preview: () => `
+        <div class="preview-upload">${icon("form")}<div><b>Navadeep_Resume.pdf</b><small>Analysed in 4.2s</small></div><span class="pill-ok">Done</span></div>
+        <div class="score-mini"><b>78</b><span>/100 · Software Engineer (fresher)</span></div>
+        <ul class="feedback">
+          <li class="good">${icon("check")}<span>Strong projects section with live links</span></li>
+          <li class="warn">${icon("alert")}<span>Add numbers: “cut load time by 40%”</span></li>
+          <li class="warn">${icon("alert")}<span>Missing keywords: REST APIs, Git</span></li>
+        </ul>`,
+    },
+    study: {
+      tagline: "Paste your syllabus and exam dates. Get a realistic day-by-day plan that adapts when you fall behind.",
+      url: "my-study-planner.vercel.app",
+      build: [
+        "Read a syllabus and the exam timetable",
+        "Ask an LLM to split topics by difficulty and days left",
+        "Show a daily plan with revision slots",
+        "Re-plan automatically when a day is missed",
+      ],
+      flow: [["Syllabus + exam dates", "form"], ["LLM planner prompt", "spark"], ["Day-by-day plan", "calendar"]],
+      stack: ["Python", "Gemini API", "Structured JSON output", "Streamlit", "Deploy"],
+      resume: "Built an AI study planner that turns a syllabus into an adaptive revision schedule using an LLM.",
+      preview: () => `
+        <div class="pv-head"><b>DBMS · end-sem in 12 days</b><span class="pill-ok">On track</span></div>
+        <ul class="pv-list">
+          <li class="done">${icon("check")}<span><b>Day 1</b> ER model + relational mapping</span></li>
+          <li class="done">${icon("check")}<span><b>Day 2</b> Normalisation (1NF–BCNF) + 10 PYQs</span></li>
+          <li>${icon("clock")}<span><b>Day 3</b> SQL joins and sub-queries</span></li>
+          <li>${icon("clock")}<span><b>Day 4</b> Transactions and concurrency</span></li>
+        </ul>`,
+    },
+    chatbot: {
+      tagline: "A chatbot that answers questions about your college using its own circulars, rules and timetables.",
+      url: "ask-my-college.vercel.app",
+      build: [
+        "Collect college PDFs: circulars, rules, fee notices",
+        "Split them into chunks and search the relevant ones",
+        "Have the LLM answer using only those chunks",
+        "Show the source document for every answer",
+      ],
+      flow: [["College PDFs", "form"], ["Search + LLM (RAG)", "search"], ["Answer with source", "check"]],
+      stack: ["Python", "Gemini API", "Embeddings", "RAG", "Streamlit", "Deploy"],
+      resume: "Built a retrieval-augmented (RAG) chatbot that answers college questions from official documents with citations.",
+      preview: () => `
+        <div class="chat">
+          <div class="bubble me">What's the last date to pay the semester fee?</div>
+          <div class="bubble bot">The last date is <b>25 October</b>. A late fee of ₹500 applies after that.<span class="src">${icon("form")} Fee_Circular_2026.pdf · page 2</span></div>
+          <div class="bubble me">Is attendance needed for the lab exam?</div>
+          <div class="bubble bot typing"><i></i><i></i><i></i></div>
+        </div>`,
+    },
+    stocks: {
+      tagline: "Reads today's market news about a stock and explains, in plain English, what's moving it.",
+      url: "stock-news-explainer.vercel.app",
+      build: [
+        "Fetch recent news headlines for a stock",
+        "Ask an LLM to tag each one as positive, negative or neutral",
+        "Summarise what's moving the price, in plain English",
+        "Show it next to the price chart",
+      ],
+      flow: [["Stock news", "form"], ["LLM sentiment + summary", "spark"], ["Plain-English brief", "chart"]],
+      stack: ["Python", "Gemini API", "News API", "Sentiment analysis", "Streamlit", "Deploy"],
+      resume: "Built an AI tool that summarises market news sentiment for a stock using an LLM. Educational only, not investment advice.",
+      preview: () => `
+        <div class="pv-head"><b>INFY · ₹1,842</b><span class="up">▲ 1.2%</span></div>
+        <ul class="pv-news">
+          <li><span class="tag pos">Positive</span>Large deal win announced in Europe</li>
+          <li><span class="tag neu">Neutral</span>IT index flat ahead of results</li>
+          <li><span class="tag neg">Negative</span>Rupee strengthens against the dollar</li>
+        </ul>
+        <div class="pv-ai">${icon("spark")}<span>Up today mainly on the new deal win; currency is a small drag.</span></div>`,
+    },
+  };
+
+  async function viewProject(id, pid) {
+    const p = PROJECT_INFO[pid], d = PROJECT_PAGES[pid];
+    if (!p || !d) { location.hash = "#/"; return; }
+    safeSet(sessionStorage, "interest", pid);
+    const code = myCode();
+    const voted = () => !!safeGet(localStorage, "voted_" + pid);
+    const others = Object.entries(PROJECT_INFO).filter(([k]) => k !== pid);
+
+    const cta = p.now
+      ? (code
+        ? `<a class="btn" href="#/me/${esc(code)}">You're registered: view my invite link ${icon("arrow")}</a>`
+        : `<a class="btn" href="#/register">Reserve my free seat ${icon("arrow")}</a>`)
+      : `<button class="btn" type="button" id="vote">${voted() ? `${icon("check")} You voted for this` : `${icon("users")} I want this next`}</button>
+         ${code ? `<a class="btn btn-dark-ghost" href="#/me/${esc(code)}">My invite link</a>`
+                : `<a class="btn btn-dark-ghost" href="#/register">Reserve a seat for Sunday</a>`}`;
+
+    app.innerHTML = `
+      <div class="hero-band">
+        <section class="wrap hero project-hero">
+          <div>
+            <a class="back-link" href="#/" data-scroll="projects">← All projects</a>
+            <span class="eyebrow">${icon(p.icon)} ${esc(p.tag)}</span>
+            <h1>${esc(p.title)}</h1>
+            <p class="lede">${esc(d.tagline)}</p>
+            <div class="hero-ctas">${cta}</div>
+            <p class="vote-line" id="vote-line">${p.now
+              ? `${icon("calendar")} Built live on ${esc(fmtDay)}, ${esc(fmtTime)} IST · free · 60 minutes`
+              : `${icon("users")} <span id="vote-count">Loading votes…</span>`}</p>
+          </div>
+          <div class="preview">
+            <div class="preview-window">
+              <div class="preview-bar"><span></span><span></span><span></span><em>${esc(d.url)}</em></div>
+              <div class="preview-body">${d.preview()}</div>
+            </div>
+            <p class="preview-caption">${icon("rocket")} ${p.now ? "This is what you'll have deployed by the end of the hour." : "A preview of what you'd build in this workshop."}</p>
+          </div>
+        </section>
+      </div>
+
+      <section class="block grid2">
+        <div class="card">
+          <h3>What you'll build</h3>
+          <ul class="build-list">${d.build.map((b, i) => `<li><span>${i + 1}</span>${esc(b)}</li>`).join("")}</ul>
+        </div>
+        <div class="card">
+          <h3>How it works</h3>
+          <div class="flow">${d.flow.map(([t, ic], i) => `
+            <div class="flow-step"><span class="icon-tile">${icon(ic)}</span><b>${esc(t)}</b></div>${i < d.flow.length - 1 ? `<span class="flow-arrow">${icon("arrow")}</span>` : ""}`).join("")}
+          </div>
+          <h3 style="margin-top:22px">Tech you'll use</h3>
+          <div class="chips">${d.stack.map((t) => `<span>${esc(t)}</span>`).join("")}</div>
+        </div>
+      </section>
+
+      <section class="block grid2">
+        <div class="card">
+          <h3>${p.now ? "The 60 minutes" : "Why students want this"}</h3>
+          ${p.now
+            ? `<ul class="agenda">${d.plan.map(([t, x]) => `<li><b>${t}</b><span>${esc(x)}</span></li>`).join("")}</ul>`
+            : `<p class="muted">It uses the same core skills as Sunday's AI Resume Reviewer: prompting, calling an LLM API and deploying. If enough students vote for it, it becomes the next free workshop.</p>
+               <p class="muted" style="margin:0">Can't wait? Join Sunday's session. You'll leave knowing how to start this one yourself.</p>`}
+        </div>
+        <div class="card">
+          <h3>The line it adds to your resume</h3>
+          <blockquote class="resume-line">${esc(d.resume)}</blockquote>
+          <p class="note" style="margin:0">Plus a public link and a GitHub repo you can show in interviews.</p>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="section-head"><h2>Explore other projects</h2></div>
+        <div class="projects projects-3">
+          ${others.map(([k, o]) => `
+            <a class="card project${o.now ? " now" : ""}" href="#/project/${k}" data-project-link="${k}">
+              <span class="project-tag">${esc(o.tag)}</span>
+              <span class="icon-tile">${icon(o.icon)}</span>
+              <b>${esc(o.title)}</b>
+              <span class="project-desc">${esc(o.desc)}</span>
+              <span class="project-cta">View project ${icon("arrow")}</span>
+            </a>`).join("")}
+        </div>
+      </section>`;
+
+    app.querySelectorAll("[data-project-link]").forEach((a) => a.addEventListener("click", () => track("projects", a.dataset.projectLink, "click")));
+
+    if (!p.now) {
+      let votes = 0;
+      const showVotes = () => {
+        const el = $("#vote-count");
+        if (el) el.textContent = votes ? `${votes} student${votes === 1 ? "" : "s"} want${votes === 1 ? "s" : ""} this as the next workshop` : "Be the first to vote for this as the next workshop";
+      };
+      api.projectVotes().then((r) => { if (isCurrent(id) && r.ok) { votes = r.votes[pid] || 0; showVotes(); } }).catch(() => showVotes());
+      $("#vote").onclick = () => {
+        if (voted()) { toast("You've already voted for this project."); return; }
+        safeSet(localStorage, "voted_" + pid, "1");
+        track("projects", pid, "vote");
+        votes += 1; showVotes();
+        $("#vote").innerHTML = `${icon("check")} You voted for this`;
+        toast(`Thanks! Your vote for ${p.title} is counted.`);
+      };
+    }
   }
 
   // ---------- register (2 steps) ----------
@@ -1013,9 +1202,9 @@
           <span class="eyebrow">${icon("spark")} Test 3 · Project Curiosity</span>
           <p class="muted">Students register more when they first see a project they want to build. Every home-page visitor sees all four project cards, so this compares projects without splitting traffic.</p>
           <div class="table-scroll"><table class="exp-table">
-            <thead><tr><th>Project</th><th>Card clicks</th><th>Click rate</th><th>Picked at sign-up</th><th>Click → sign-up</th></tr></thead>
+            <thead><tr><th>Project</th><th>Card clicks</th><th>Click rate</th><th>Votes</th><th>Picked at sign-up</th><th>Click → sign-up</th></tr></thead>
             <tbody>
-              ${[...x.projects.items].sort((p1, p2) => p2.clicks - p1.clicks).map((it) => `<tr><td>${esc(PROJECT_INFO[it.id].title)}</td><td>${it.clicks}</td><td>${pctf(it.ctr)}</td><td>${it.regs}</td><td>${it.clicks ? pctf(it.clickToReg) : "–"}</td></tr>`).join("")}
+              ${[...x.projects.items].sort((p1, p2) => p2.clicks - p1.clicks).map((it) => `<tr><td>${esc(PROJECT_INFO[it.id].title)}</td><td>${it.clicks}</td><td>${pctf(it.ctr)}</td><td>${it.votes}</td><td>${it.regs}</td><td>${it.clicks ? pctf(it.clickToReg) : "–"}</td></tr>`).join("")}
             </tbody></table></div>
           <div class="exp-result">${(() => {
             const top = [...x.projects.items].sort((p1, p2) => p2.clicks - p1.clicks)[0];
@@ -1163,7 +1352,7 @@
     document.querySelectorAll("[data-route]").forEach((a) => a.classList.toggle("active", a.dataset.route === page));
     if (page !== "register") safeDel(sessionStorage, "register_another");
     updateNavCta();
-    const titles = { register: "Reserve your seat", me: "Your invite link", leaderboard: "Leaderboard", simulator: "Campaign Simulator", find: "Find my link", admin: "Organiser dashboard" };
+    const titles = { project: arg && PROJECT_INFO[arg.toLowerCase()] ? PROJECT_INFO[arg.toLowerCase()].title : "Project", register: "Reserve your seat", me: "Your invite link", leaderboard: "Leaderboard", simulator: "Campaign Simulator", find: "Find my link", admin: "Organiser dashboard" };
     document.title = (titles[page] ? titles[page] + " · " : "") + "Build Your First AI Project in 60 Minutes";
     window.scrollTo(0, 0);
     const run =
@@ -1172,6 +1361,7 @@
       page === "simulator" ? window.Sim.view(app) :
       page === "find" ? viewFind(id) :
       page === "register" ? viewRegister(id) :
+      page === "project" && arg ? viewProject(id, arg.toLowerCase()) :
       page === "admin" ? viewAdmin(id) :
       viewHome(id);
     Promise.resolve(run).catch((e) => {
